@@ -1,0 +1,18 @@
+set(CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_NOCOVERAGE})
+
+if (DEFINED CMAKE_TESTING_ENABLED)
+	include(Catch)
+	add_library(catch_main STATIC catch_main.cpp)
+	#target_include_directories(catch_main SYSTEM PUBLIC ${CATCH_INCLUDE_DIR})
+	target_link_libraries(catch_main INTERFACE Catch2::Catch2)
+endif ()
+
+macro(catchtest name)
+	if (DEFINED CMAKE_TESTING_ENABLED)
+		add_executable(test_${name} ${ARGN})
+		target_link_libraries(test_${name} catch_main ${name})
+		set_target_properties(test_${name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/bin/test")
+		#add_test(NAME ${name} COMMAND "${CMAKE_BINARY_DIR}/test/test_${name}" -r junit -s -o "${CMAKE_BINARY_DIR}/test/test_${name}.xml" -n "${name}")
+		catch_discover_tests(test_${name})
+	endif ()
+endmacro()
