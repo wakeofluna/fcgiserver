@@ -1,12 +1,31 @@
 #include "fast_cgi_data.h"
 #include "request.h"
 
+#include <errno.h>
+#include <signal.h>
+#include <sys/stat.h>
+
 #include <cstdlib>
 #include <cstdio>
-#include <fcgiapp.h>
-#include <errno.h>
-#include <sys/stat.h>
 #include <thread>
+
+#include <fcgiapp.h>
+
+namespace
+{
+
+volatile bool bTerminate = false;
+
+}
+
+void sigterm(int signal)
+{
+	if (bTerminate)
+		raise(SIGKILL);
+
+	bTerminate = true;
+	FCGX_ShutdownPending();
+}
 
 void threadfunc(int sockfd)
 {
@@ -25,15 +44,13 @@ void threadfunc(int sockfd)
 		result = FCGX_Accept_r(&fcgx_request);
 		if (result != 0)
 		{
-			printf("Error %d on FCGX_Accept_r!\n", result);
+			if (result != -9999) // Regular Termination
+				printf("Error %d on FCGX_Accept_r!\n", result);
 			return;
 		}
 
 		fcgiserver::FastCgiData fcgi_data(fcgx_request);
 		fcgiserver::Request request(fcgi_data);
-
-		request.write("Status: 200\r\n");
-		request.write("Content-type: text/html\r\n\r\n");
 
 		request.write("<html><body>\n");
 		request.write("<h1>Hello world!</h1>\n");
@@ -56,6 +73,8 @@ void threadfunc(int sockfd)
 		request.write("</body></html>\n");
 		printf("Finished request..\n");
 	}
+
+	printf("Thread finished\n");
 }
 
 
@@ -91,6 +110,9 @@ int main(int argc, char **argv)
 	}
 
 	printf("Running %d threads on socket %d!\n", nr_threads, sockfd);
+
+	signal(SIGINT, &sigterm);
+	signal(SIGTERM, &sigterm);
 
 	std::thread threads[nr_threads];
 	for (int i = 0; i < nr_threads; ++i)

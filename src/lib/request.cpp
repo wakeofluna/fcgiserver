@@ -4,6 +4,7 @@
 #include <charconv>
 
 using namespace fcgiserver;
+using namespace std::literals::string_view_literals;
 
 namespace
 {
@@ -12,15 +13,15 @@ RequestMethod resolve_method(std::string_view const& method)
 {
 	using RequestMethodMap = std::map<std::string_view,RequestMethod>;
 	static RequestMethodMap rmm({
-	    { "GET", RequestMethod::GET },
-	    { "HEAD", RequestMethod::HEAD },
-	    { "POST", RequestMethod::POST },
-	    { "PUT", RequestMethod::PUT },
-	    { "DELETE", RequestMethod::DELETE },
-	    { "CONNECT", RequestMethod::CONNECT },
-	    { "OPTIONS", RequestMethod::OPTIONS },
-	    { "TRACE", RequestMethod::TRACE },
-	    { "PATCH", RequestMethod::PATCH },
+	    { "GET"sv, RequestMethod::GET },
+	    { "HEAD"sv, RequestMethod::HEAD },
+	    { "POST"sv, RequestMethod::POST },
+	    { "PUT"sv, RequestMethod::PUT },
+	    { "DELETE"sv, RequestMethod::DELETE },
+	    { "CONNECT"sv, RequestMethod::CONNECT },
+	    { "OPTIONS"sv, RequestMethod::OPTIONS },
+	    { "TRACE"sv, RequestMethod::TRACE },
+	    { "PATCH"sv, RequestMethod::PATCH },
 	});
 
 	auto iter = rmm.find(method);
@@ -31,11 +32,21 @@ RequestMethod resolve_method(std::string_view const& method)
 
 Request::Request(ICgiData & cgidata)
     : m_cgi_data(cgidata)
+    , m_headers_sent(false)
 {
 }
 
 Request::~Request()
 {
+	if (!m_headers_sent)
+	{
+		constexpr std::string_view message("Data processor did not return any data"sv);
+
+		set_http_status(500);
+		set_content_type("text/plain");
+		set_header("Content-Length", message.size());
+		write(message);
+	}
 }
 
 int Request::read(char * buffer, size_t bufsize)
@@ -48,6 +59,8 @@ int Request::read(char * buffer, size_t bufsize)
 
 int Request::write(const char * buffer, size_t bufsize)
 {
+	send_headers();
+
 	if (bufsize == size_t(-1))
 		bufsize = std::strlen(buffer);
 
@@ -78,7 +91,7 @@ int Request::flush_error()
 	return m_cgi_data.flush_error();
 }
 
-Request::StringMap const& Request::env_map() const
+Request::StringViewMap const& Request::env_map() const
 {
 	if (m_env_map.empty())
 	{
@@ -92,7 +105,7 @@ Request::StringMap const& Request::env_map() const
 
 			std::string_view key = line.substr(0, split_pos);
 			std::string_view val = line.substr(split_pos + 1);
-			const_cast<StringMap&>(m_env_map).insert(std::pair{key, val});
+			const_cast<StringViewMap&>(m_env_map).emplace(key, val);
 		}
 	}
 	return m_env_map;
@@ -100,7 +113,7 @@ Request::StringMap const& Request::env_map() const
 
 std::string_view Request::env(std::string_view const& key) const
 {
-	StringMap const& env = env_map();
+	StringViewMap const& env = env_map();
 	auto iter = env.find(key);
 	return iter != env.cend() ? iter->second : std::string_view();
 }
@@ -111,9 +124,9 @@ RequestMethod Request::request_method() const
 	return value.empty() ? RequestMethod::UNKNOWN : resolve_method(value);
 }
 
-Request::StringMap Request::query() const
+Request::StringViewMap Request::query() const
 {
-	StringMap result;
+	StringViewMap result;
 
 	std::string_view query_str = query_string();
 	while (!query_str.empty())
@@ -126,7 +139,7 @@ Request::StringMap Request::query() const
 		split = element.find('=');
 		std::string_view key = element.substr(0, split);
 		std::string_view value = split == std::string_view::npos ? std::string_view() : element.substr(split+1);
-		result.insert(std::pair{key, value});
+		result.emplace(key, value);
 	}
 
 	return result;
@@ -145,5 +158,48 @@ int Request::remote_port() const
 bool Request::do_not_track() const
 {
 	std::string_view value = do_not_track_string();
-	return value == "1";
+	return value == "1"sv;
+}
+
+void Request::set_http_status(uint16_t code)
+{
+	m_headers.emplace("Status"sv, std::to_string(code));
+}
+
+void Request::set_content_type(std::string content_type)
+{
+	m_headers.emplace("Content-Type"sv, std::move(content_type));
+}
+
+void Request::set_header(std::string key, std::string value)
+{
+	m_headers.emplace(std::move(key), std::move(value));
+}
+
+void Request::set_header(std::string key, int value)
+{
+	m_headers.emplace(std::move(key), std::to_string(value));
+}
+
+void Request::send_headers()
+{
+	if (m_headers_sent)
+		return;
+
+	if (m_headers.find("Status") == m_headers.cend())
+		m_headers.emplace("Status", "200");
+
+	if (m_headers.find("Content-Type") == m_headers.cend())
+		m_headers.emplace("Content-Type", "text/html");
+
+	for (auto iter : m_headers)
+	{
+		m_cgi_data.write(reinterpret_cast<const uint8_t*>(iter.first.c_str()), iter.first.size());
+		m_cgi_data.write(reinterpret_cast<const uint8_t*>(": "), 2);
+		m_cgi_data.write(reinterpret_cast<const uint8_t*>(iter.second.c_str()), iter.second.size());
+		m_cgi_data.write(reinterpret_cast<const uint8_t*>("\r\n"), 2);
+	}
+
+	m_cgi_data.write(reinterpret_cast<const uint8_t*>("\r\n"), 2);
+	m_headers_sent = true;
 }

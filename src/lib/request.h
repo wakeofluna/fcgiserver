@@ -7,6 +7,9 @@
 #include <cstdint>
 #include <map>
 #include <string_view>
+#include <string>
+
+using namespace std::literals::string_view_literals;
 
 namespace fcgiserver
 {
@@ -16,6 +19,9 @@ class ICgiData;
 class Request
 {
 public:
+	using StringViewMap = std::map<std::string_view,std::string_view>;
+	using StringMap = std::map<std::string,std::string>;
+
 	Request(ICgiData & cgidata);
 	~Request();
 
@@ -30,28 +36,36 @@ public:
 	int flush();
 	int flush_error();
 
-	using StringMap = std::map<std::string_view,std::string_view>;
-	StringMap const& env_map() const;
+	StringViewMap const& env_map() const;
 
 	std::string_view env(std::string_view const& key) const;
-	inline std::string_view request_method_string() const { return env("REQUEST_METHOD"); }
-	inline std::string_view query_string() const { return env("QUERY_STRING"); }
-	inline std::string_view script_name() const { return env("SCRIPT_NAME"); }
-	inline std::string_view document_uri() const { return env("DOCUMENT_URI"); }
-	inline std::string_view request_scheme() const { return env("REQUEST_SCHEME"); }
-	inline std::string_view remote_addr() const { return env("REMOTE_ADDR"); }
-	inline std::string_view remote_port_string() const { return env("REMOTE_PORT"); }
-	inline std::string_view user_agent() const { return env("HTTP_USER_AGENT"); }
-	inline std::string_view do_not_track_string() const { return env("HTTP_DNT"); }
+	inline std::string_view request_method_string() const { return env("REQUEST_METHOD"sv); }
+	inline std::string_view query_string() const { return env("QUERY_STRING"sv); }
+	inline std::string_view script_name() const { return env("SCRIPT_NAME"sv); }
+	inline std::string_view document_uri() const { return env("DOCUMENT_URI"sv); }
+	inline std::string_view request_scheme() const { return env("REQUEST_SCHEME"sv); }
+	inline std::string_view remote_addr() const { return env("REMOTE_ADDR"sv); }
+	inline std::string_view remote_port_string() const { return env("REMOTE_PORT"sv); }
+	inline std::string_view user_agent() const { return env("HTTP_USER_AGENT"sv); }
+	inline std::string_view do_not_track_string() const { return env("HTTP_DNT"sv); }
 
 	RequestMethod request_method() const;
-	StringMap query() const;
+	StringViewMap query() const;
 	int remote_port() const;
 	bool do_not_track() const;
 
+	void set_http_status(uint16_t code);
+	void set_content_type(std::string content_type);
+	void set_header(std::string key, std::string value);
+	void set_header(std::string key, int value);
+
 protected:
+	void send_headers();
+
 	ICgiData & m_cgi_data;
-	StringMap m_env_map;
+	StringViewMap m_env_map;
+	StringMap m_headers;
+	bool m_headers_sent;
 };
 
 } // namespace fcgiserver
