@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <thread>
 #include <cstring>
+#include <unistd.h>
 
 #include <fcgiapp.h>
 
@@ -135,6 +136,12 @@ int main(int argc, char **argv)
 
 	printf("Initiating shutdown! (signal:%d)\n", signum);
 	FCGX_ShutdownPending();
+
+	if (sockfd != 0)
+	{
+		::close(sockfd);
+		::unlink("/tmp/fcgiserver.sock");
+	}
 
 	for (int i = 0; i < nr_threads; ++i)
 		if (threads[i].joinable())
