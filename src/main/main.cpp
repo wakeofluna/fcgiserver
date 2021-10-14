@@ -8,34 +8,41 @@
 #include <cstdlib>
 #include <cstdio>
 #include <thread>
+#include <cstring>
 
 #include <fcgiapp.h>
 
 namespace
 {
 
-volatile bool bTerminate = false;
-
+void sigusr1(int signum, siginfo_t *info, void *ucontext)
+{
 }
 
-void sigterm(int signal)
-{
-	if (bTerminate)
-		raise(SIGKILL);
-
-	bTerminate = true;
-	FCGX_ShutdownPending();
 }
 
 void threadfunc(int sockfd)
 {
+	{
+		sigset_t sigset;
+		sigfillset(&sigset);
+		sigdelset(&sigset, SIGUSR1);
+		pthread_sigmask(SIG_SETMASK, &sigset, nullptr);
+
+		struct sigaction sa = {};
+		sa.sa_flags = SA_SIGINFO;
+		sa.sa_sigaction = &sigusr1;
+		sigemptyset(&sa.sa_mask);
+		sigaction(SIGUSR1, &sa, nullptr);
+	}
+
 	int result;
 	FCGX_Request fcgx_request;
 
-	result = FCGX_InitRequest(&fcgx_request, sockfd, FCGI_FAIL_ACCEPT_ON_INTR);
+	result = FCGX_InitRequest(&fcgx_request, sockfd, 0);
 	if (result != 0)
 	{
-		printf("Error %d on FCGX_InitRequest!\n", result);
+		printf("Error %d on FCGX_InitRequest! (%s)\n", result, strerror(-result));
 		return;
 	}
 
@@ -45,7 +52,7 @@ void threadfunc(int sockfd)
 		if (result != 0)
 		{
 			if (result != -9999) // Regular Termination
-				printf("Error %d on FCGX_Accept_r!\n", result);
+				printf("Error %d on FCGX_Accept_r! (%s)\n", result, strerror(-result));
 			return;
 		}
 
@@ -111,12 +118,27 @@ int main(int argc, char **argv)
 
 	printf("Running %d threads on socket %d!\n", nr_threads, sockfd);
 
-	signal(SIGINT, &sigterm);
-	signal(SIGTERM, &sigterm);
-
 	std::thread threads[nr_threads];
 	for (int i = 0; i < nr_threads; ++i)
 		threads[i] = std::thread(&threadfunc, sockfd);
+
+	sigset_t sigset;
+	sigemptyset(&sigset);
+	sigaddset(&sigset, SIGINT);
+	sigaddset(&sigset, SIGTERM);
+	sigaddset(&sigset, SIGHUP);
+	pthread_sigmask(SIG_BLOCK, &sigset, nullptr);
+
+	int signum = 0;
+	sigwait(&sigset, &signum);
+	pthread_sigmask(SIG_UNBLOCK, &sigset, nullptr);
+
+	printf("Initiating shutdown! (signal:%d)\n", signum);
+	FCGX_ShutdownPending();
+
+	for (int i = 0; i < nr_threads; ++i)
+		if (threads[i].joinable())
+			pthread_kill(threads[i].native_handle(), SIGUSR1);
 
 	for (int i = 0; i < nr_threads; ++i)
 		if (threads[i].joinable())
