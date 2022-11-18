@@ -50,15 +50,39 @@ RequestMethod resolve_method(std::string_view const& method)
 
 }
 
-Request::Request(ICgiData & cgidata)
-    : m_cgi_data(cgidata)
-    , m_headers_sent(false)
+class fcgiserver::RequestPrivate
 {
+public:
+	RequestPrivate(ICgiData & icd)
+	    : cgi_data(icd)
+	    , headers_sent(false)
+	{}
+
+	ICgiData & cgi_data;
+	Request::StringViewMap env_map;
+	Request::StringMap headers;
+	bool headers_sent;
+
+};
+
+Request::Request(ICgiData & cgidata)
+    : m_private(new RequestPrivate(cgidata))
+{
+}
+
+ICgiData & Request::cgi_data()
+{
+	return m_private->cgi_data;
+}
+
+ICgiData const& Request::cgi_data() const
+{
+	return m_private->cgi_data;
 }
 
 Request::~Request()
 {
-	if (!m_headers_sent)
+	if (!m_private->headers_sent)
 	{
 		constexpr std::string_view message("Data processor did not return any data"sv);
 
@@ -67,6 +91,7 @@ Request::~Request()
 		set_header("Content-Length", message.size());
 		write(message);
 	}
+	delete m_private;
 }
 
 int Request::read(char * buffer, size_t bufsize)
@@ -74,7 +99,7 @@ int Request::read(char * buffer, size_t bufsize)
 	if (bufsize == 0)
 		return 0;
 
-	return m_cgi_data.read(reinterpret_cast<uint8_t*>(buffer), bufsize);
+	return m_private->cgi_data.read(reinterpret_cast<uint8_t*>(buffer), bufsize);
 }
 
 int Request::write(const char * buffer, size_t bufsize)
@@ -87,7 +112,7 @@ int Request::write(const char * buffer, size_t bufsize)
 	if (bufsize == 0)
 		return 0;
 
-	return m_cgi_data.write(reinterpret_cast<const uint8_t*>(buffer), bufsize);
+	return m_private->cgi_data.write(reinterpret_cast<const uint8_t*>(buffer), bufsize);
 }
 
 int Request::error(const char * buffer, size_t bufsize)
@@ -98,24 +123,24 @@ int Request::error(const char * buffer, size_t bufsize)
 	if (bufsize == 0)
 		return 0;
 
-	return m_cgi_data.error(reinterpret_cast<const uint8_t*>(buffer), bufsize);
+	return m_private->cgi_data.error(reinterpret_cast<const uint8_t*>(buffer), bufsize);
 }
 
 int Request::flush()
 {
-	return m_cgi_data.flush_write();
+	return m_private->cgi_data.flush_write();
 }
 
 int Request::flush_error()
 {
-	return m_cgi_data.flush_error();
+	return m_private->cgi_data.flush_error();
 }
 
 Request::StringViewMap const& Request::env_map() const
 {
-	if (m_env_map.empty())
+	if (m_private->env_map.empty())
 	{
-		for (const char **envp = m_cgi_data.env(); envp && *envp; ++envp)
+		for (const char **envp = m_private->cgi_data.env(); envp && *envp; ++envp)
 		{
 			std::string_view line(*envp);
 
@@ -125,10 +150,10 @@ Request::StringViewMap const& Request::env_map() const
 
 			std::string_view key = line.substr(0, split_pos);
 			std::string_view val = line.substr(split_pos + 1);
-			const_cast<StringViewMap&>(m_env_map).emplace(key, val);
+			const_cast<StringViewMap&>(m_private->env_map).emplace(key, val);
 		}
 	}
-	return m_env_map;
+	return m_private->env_map;
 }
 
 std::string_view Request::env(std::string_view const& key) const
@@ -140,8 +165,8 @@ std::string_view Request::env(std::string_view const& key) const
 
 std::string_view Request::header(std::string_view const& key) const
 {
-	auto iter = m_headers.find(std::string(key));
-	return iter != m_headers.cend() ? iter->second : "200"sv;
+	auto iter = m_private->headers.find(std::string(key));
+	return iter != m_private->headers.cend() ? iter->second : "200"sv;
 }
 
 RequestMethod Request::request_method() const
@@ -189,43 +214,43 @@ bool Request::do_not_track() const
 
 void Request::set_http_status(uint16_t code)
 {
-	m_headers.emplace("Status"sv, std::to_string(code));
+	m_private->headers.emplace("Status"sv, std::to_string(code));
 }
 
 void Request::set_content_type(std::string content_type)
 {
-	m_headers.emplace("Content-Type"sv, std::move(content_type));
+	m_private->headers.emplace("Content-Type"sv, std::move(content_type));
 }
 
 void Request::set_header(std::string key, std::string value)
 {
-	m_headers.emplace(std::move(key), std::move(value));
+	m_private->headers.emplace(std::move(key), std::move(value));
 }
 
 void Request::set_header(std::string key, int value)
 {
-	m_headers.emplace(std::move(key), std::to_string(value));
+	m_private->headers.emplace(std::move(key), std::to_string(value));
 }
 
 void Request::send_headers()
 {
-	if (m_headers_sent)
+	if (m_private->headers_sent)
 		return;
 
-	if (m_headers.find("Status") == m_headers.cend())
-		m_headers.emplace("Status", "200");
+	if (m_private->headers.find("Status") == m_private->headers.cend())
+		m_private->headers.emplace("Status", "200");
 
-	if (m_headers.find("Content-Type") == m_headers.cend())
-		m_headers.emplace("Content-Type", "text/html");
+	if (m_private->headers.find("Content-Type") == m_private->headers.cend())
+		m_private->headers.emplace("Content-Type", "text/html");
 
-	for (auto iter : m_headers)
+	for (auto iter : m_private->headers)
 	{
-		m_cgi_data.write(reinterpret_cast<const uint8_t*>(iter.first.c_str()), iter.first.size());
-		m_cgi_data.write(reinterpret_cast<const uint8_t*>(": "), 2);
-		m_cgi_data.write(reinterpret_cast<const uint8_t*>(iter.second.c_str()), iter.second.size());
-		m_cgi_data.write(reinterpret_cast<const uint8_t*>("\r\n"), 2);
+		m_private->cgi_data.write(reinterpret_cast<const uint8_t*>(iter.first.c_str()), iter.first.size());
+		m_private->cgi_data.write(reinterpret_cast<const uint8_t*>(": "), 2);
+		m_private->cgi_data.write(reinterpret_cast<const uint8_t*>(iter.second.c_str()), iter.second.size());
+		m_private->cgi_data.write(reinterpret_cast<const uint8_t*>("\r\n"), 2);
 	}
 
-	m_cgi_data.write(reinterpret_cast<const uint8_t*>("\r\n"), 2);
-	m_headers_sent = true;
+	m_private->cgi_data.write(reinterpret_cast<const uint8_t*>("\r\n"), 2);
+	m_private->headers_sent = true;
 }

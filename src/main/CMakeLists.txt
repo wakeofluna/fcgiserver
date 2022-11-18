@@ -1,13 +1,2 @@
-set (SOURCES
-    main.cpp
-)
-
-set (HEADERS
-
-)
-
-find_package(Threads REQUIRED)
-
-add_executable(fcgiserver ${SOURCES} ${HEADERS})
-target_link_libraries(fcgiserver PRIVATE fcgiserver-lib Threads::Threads)
-
+add_executable(fcgiserver_demo main.cpp)
+target_link_libraries(fcgiserver_demo PRIVATE fcgiserver)

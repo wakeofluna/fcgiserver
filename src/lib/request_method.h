@@ -1,10 +1,12 @@
 #ifndef FCGISERVER_REQUEST_METHOD_H
 #define FCGISERVER_REQUEST_METHOD_H
 
+#include <cstdint>
+
 namespace fcgiserver
 {
 
-enum class RequestMethod
+enum class RequestMethod : std::uint8_t
 {
 	UNKNOWN,
 	GET,

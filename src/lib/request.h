@@ -1,6 +1,7 @@
 #ifndef FCGISERVER_REQUEST_H
 #define FCGISERVER_REQUEST_H
 
+#include "fcgiserver_defs.h"
 #include "request_method.h"
 
 #include <cstddef>
@@ -15,8 +16,9 @@ namespace fcgiserver
 {
 
 class ICgiData;
+class RequestPrivate;
 
-class Request
+class DLL_PUBLIC Request
 {
 public:
 	using StringViewMap = std::map<std::string_view,std::string_view>;
@@ -25,8 +27,11 @@ public:
 	Request(ICgiData & cgidata);
 	~Request();
 
-	inline ICgiData      & cgi_data()       { return m_cgi_data; }
-	inline ICgiData const& cgi_data() const { return m_cgi_data; }
+	Request(Request && other) = delete;
+	Request(Request const& other) = delete;
+
+	ICgiData      & cgi_data();
+	ICgiData const& cgi_data() const;
 
 	int read(char * buffer, size_t bufsize);
 	int write(const char * buffer, size_t bufsize = size_t(-1));
@@ -64,10 +69,7 @@ public:
 protected:
 	void send_headers();
 
-	ICgiData & m_cgi_data;
-	StringViewMap m_env_map;
-	StringMap m_headers;
-	bool m_headers_sent;
+	RequestPrivate * m_private;
 };
 
 } // namespace fcgiserver

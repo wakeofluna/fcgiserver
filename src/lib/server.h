@@ -1,6 +1,7 @@
 #ifndef FCGISERVER_SERVER_H
 #define FCGISERVER_SERVER_H
 
+#include "fcgiserver_defs.h"
 #include "logger.h"
 #include <cstdint>
 #include <functional>
@@ -12,7 +13,7 @@ namespace fcgiserver
 class Request;
 class ServerPrivate;
 
-class Server
+class DLL_PUBLIC Server
 {
 public:
 	using Callback = std::function<void(LogCallback const&, Request&)>;

@@ -3,11 +3,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "fcgiserver_defs.h"
 
 namespace fcgiserver
 {
 
-class ICgiData
+class DLL_PUBLIC ICgiData
 {
 public:
 	virtual ~ICgiData() {}
