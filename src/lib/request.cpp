@@ -11,21 +11,41 @@ namespace
 
 RequestMethod resolve_method(std::string_view const& method)
 {
-	using RequestMethodMap = std::map<std::string_view,RequestMethod>;
-	static RequestMethodMap rmm({
-	    { "GET"sv, RequestMethod::GET },
-	    { "HEAD"sv, RequestMethod::HEAD },
-	    { "POST"sv, RequestMethod::POST },
-	    { "PUT"sv, RequestMethod::PUT },
-	    { "DELETE"sv, RequestMethod::DELETE },
-	    { "CONNECT"sv, RequestMethod::CONNECT },
-	    { "OPTIONS"sv, RequestMethod::OPTIONS },
-	    { "TRACE"sv, RequestMethod::TRACE },
-	    { "PATCH"sv, RequestMethod::PATCH },
-	});
-
-	auto iter = rmm.find(method);
-	return iter != rmm.cend() ? iter->second : RequestMethod::OTHER;
+	size_t len = method.size();
+	if (len == 3)
+	{
+		if (method == "GET"sv)
+			return RequestMethod::GET;
+		else if (method == "PUT"sv)
+			return RequestMethod::PUT;
+	}
+	else if (len == 4)
+	{
+		if (method == "POST"sv)
+			return RequestMethod::POST;
+		else if (method == "HEAD"sv)
+			return RequestMethod::HEAD;
+	}
+	else if (len == 5)
+	{
+		if (method == "PATCH"sv)
+			return RequestMethod::PATCH;
+		else if (method == "TRACE"sv)
+			return RequestMethod::TRACE;
+	}
+	else if (len == 6)
+	{
+		if (method == "DELETE"sv)
+			return RequestMethod::DELETE;
+	}
+	else if (len == 7)
+	{
+		if (method == "CONNECT"sv)
+			return RequestMethod::CONNECT;
+		else if (method == "OPTIONS"sv)
+			return RequestMethod::OPTIONS;
+	}
+	return RequestMethod::OTHER;
 }
 
 }
@@ -116,6 +136,12 @@ std::string_view Request::env(std::string_view const& key) const
 	StringViewMap const& env = env_map();
 	auto iter = env.find(key);
 	return iter != env.cend() ? iter->second : std::string_view();
+}
+
+std::string_view Request::header(std::string_view const& key) const
+{
+	auto iter = m_headers.find(std::string(key));
+	return iter != m_headers.cend() ? iter->second : "200"sv;
 }
 
 RequestMethod Request::request_method() const

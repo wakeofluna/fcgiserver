@@ -39,6 +39,7 @@ public:
 	StringViewMap const& env_map() const;
 
 	std::string_view env(std::string_view const& key) const;
+	std::string_view header(std::string_view const& key) const;
 	inline std::string_view request_method_string() const { return env("REQUEST_METHOD"sv); }
 	inline std::string_view query_string() const { return env("QUERY_STRING"sv); }
 	inline std::string_view script_name() const { return env("SCRIPT_NAME"sv); }
@@ -48,6 +49,7 @@ public:
 	inline std::string_view remote_port_string() const { return env("REMOTE_PORT"sv); }
 	inline std::string_view user_agent() const { return env("HTTP_USER_AGENT"sv); }
 	inline std::string_view do_not_track_string() const { return env("HTTP_DNT"sv); }
+	inline std::string_view http_status() const { return header("Status"sv); }
 
 	RequestMethod request_method() const;
 	StringViewMap query() const;

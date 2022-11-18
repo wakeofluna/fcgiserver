@@ -1,13 +1,16 @@
 set (SOURCES
     fast_cgi_data.cpp
     request.cpp
+    server.cpp
 )
 
 set (HEADERS
     i_cgi_data.h
     fast_cgi_data.h
+    logger.h
     request.h
     request_method.h
+    server.h
 )
 
 set (TEST_SOURCES
