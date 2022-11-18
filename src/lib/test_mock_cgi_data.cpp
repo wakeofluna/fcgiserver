@@ -61,7 +61,7 @@ const char **MockCgiData::env() const
 
 
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <cstring>
 
 TEST_CASE("MockCgiData", "[request]")
