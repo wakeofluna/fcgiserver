@@ -4,6 +4,7 @@ set (SOURCES
 	server.cpp
 	symbol.cpp
 	symbol_server.cpp
+	symbols.cpp
 )
 
 set (PRIVATE_HEADERS
@@ -20,6 +21,7 @@ set (HEADERS
 	request_method.h
 	server.h
 	symbol.h
+	symbols.h
 )
 
 set (OTHER

@@ -3,10 +3,13 @@
 
 #include "fcgiserver_defs.h"
 #include "request_method.h"
+#include "symbol.h"
+#include "symbols.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <unordered_map>
 #include <string_view>
 #include <string>
 
@@ -22,7 +25,8 @@ class DLL_PUBLIC Request
 {
 public:
 	using StringViewMap = std::map<std::string_view,std::string_view>;
-	using StringMap = std::map<std::string,std::string>;
+	using EnvMap = std::map<Symbol,std::string_view>;
+	using HeaderMap = std::unordered_map<Symbol,std::string>;
 
 	Request(ICgiData & cgidata);
 	~Request();
@@ -41,20 +45,24 @@ public:
 	int flush();
 	int flush_error();
 
-	StringViewMap const& env_map() const;
+	EnvMap const& env_map() const;
+	std::string_view env(Symbol symbol) const;
+	inline std::string_view request_content_type() const { return env(symbols::CONTENT_TYPE); }
+	inline std::string_view request_content_length() const { return env(symbols::CONTENT_LENGTH); }
+	inline std::string_view request_method_string() const { return env(symbols::REQUEST_METHOD); }
+	inline std::string_view request_scheme() const { return env(symbols::REQUEST_SCHEME); }
+	inline std::string_view query_string() const { return env(symbols::QUERY_STRING); }
+	inline std::string_view script_name() const { return env(symbols::SCRIPT_NAME); }
+	inline std::string_view document_uri() const { return env(symbols::DOCUMENT_URI); }
+	inline std::string_view path_info() const { return env(symbols::PATH_INFO); }
+	inline std::string_view remote_addr() const { return env(symbols::REMOTE_ADDR); }
+	inline std::string_view remote_port_string() const { return env(symbols::REMOTE_PORT); }
+	inline std::string_view user_agent() const { return env(symbols::HTTP_USER_AGENT); }
+	inline std::string_view do_not_track_string() const { return env(symbols::HTTP_DNT); }
 
-	std::string_view env(std::string_view const& key) const;
-	std::string_view header(std::string_view const& key) const;
-	inline std::string_view request_method_string() const { return env("REQUEST_METHOD"sv); }
-	inline std::string_view query_string() const { return env("QUERY_STRING"sv); }
-	inline std::string_view script_name() const { return env("SCRIPT_NAME"sv); }
-	inline std::string_view document_uri() const { return env("DOCUMENT_URI"sv); }
-	inline std::string_view request_scheme() const { return env("REQUEST_SCHEME"sv); }
-	inline std::string_view remote_addr() const { return env("REMOTE_ADDR"sv); }
-	inline std::string_view remote_port_string() const { return env("REMOTE_PORT"sv); }
-	inline std::string_view user_agent() const { return env("HTTP_USER_AGENT"sv); }
-	inline std::string_view do_not_track_string() const { return env("HTTP_DNT"sv); }
-	inline std::string_view http_status() const { return header("Status"sv); }
+	HeaderMap const& headers() const;
+	std::string_view header(Symbol symbol) const;
+	inline std::string_view http_status() const { return header(symbols::Status); }
 
 	RequestMethod request_method() const;
 	StringViewMap query() const;
@@ -63,8 +71,8 @@ public:
 
 	void set_http_status(uint16_t code);
 	void set_content_type(std::string content_type);
-	void set_header(std::string key, std::string value);
-	void set_header(std::string key, int value);
+	void set_header(Symbol key, std::string value);
+	void set_header(Symbol key, int value);
 
 protected:
 	void send_headers();

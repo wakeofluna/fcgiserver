@@ -28,7 +28,7 @@ void hello_world(fcgiserver::LogCallback const& logger, fcgiserver::Request & re
 	for (auto & entry : env_map)
 	{
 		request.write("<tr><td>");
-		request.write(entry.first);
+		request.write(entry.first.to_string_view());
 		request.write("</td><td>");
 		request.write(entry.second);
 		request.write("</td></tr>");

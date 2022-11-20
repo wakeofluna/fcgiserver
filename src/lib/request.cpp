@@ -11,40 +11,27 @@ namespace
 
 RequestMethod resolve_method(std::string_view const& method)
 {
-	size_t len = method.size();
-	if (len == 3)
-	{
-		if (method == "GET"sv)
-			return RequestMethod::GET;
-		else if (method == "PUT"sv)
-			return RequestMethod::PUT;
-	}
-	else if (len == 4)
-	{
-		if (method == "POST"sv)
-			return RequestMethod::POST;
-		else if (method == "HEAD"sv)
-			return RequestMethod::HEAD;
-	}
-	else if (len == 5)
-	{
-		if (method == "PATCH"sv)
-			return RequestMethod::PATCH;
-		else if (method == "TRACE"sv)
-			return RequestMethod::TRACE;
-	}
-	else if (len == 6)
-	{
-		if (method == "DELETE"sv)
-			return RequestMethod::DELETE;
-	}
-	else if (len == 7)
-	{
-		if (method == "CONNECT"sv)
-			return RequestMethod::CONNECT;
-		else if (method == "OPTIONS"sv)
-			return RequestMethod::OPTIONS;
-	}
+	Symbol sym = Symbol::maybe(method);
+
+	if (sym == symbols::GET)
+		return RequestMethod::GET;
+	if (sym == symbols::PUT)
+		return RequestMethod::PUT;
+	if (sym == symbols::POST)
+		return RequestMethod::POST;
+	if (sym == symbols::HEAD)
+		return RequestMethod::HEAD;
+	if (sym == symbols::PATCH)
+		return RequestMethod::PATCH;
+	if (sym == symbols::TRACE)
+		return RequestMethod::TRACE;
+	if (sym == symbols::DELETE)
+		return RequestMethod::DELETE;
+	if (sym == symbols::CONNECT)
+		return RequestMethod::CONNECT;
+	if (sym == symbols::OPTIONS)
+		return RequestMethod::OPTIONS;
+
 	return RequestMethod::OTHER;
 }
 
@@ -59,8 +46,8 @@ public:
 	{}
 
 	ICgiData & cgi_data;
-	Request::StringViewMap env_map;
-	Request::StringMap headers;
+	Request::EnvMap env_map;
+	Request::HeaderMap headers;
 	bool headers_sent;
 
 };
@@ -88,7 +75,7 @@ Request::~Request()
 
 		set_http_status(500);
 		set_content_type("text/plain");
-		set_header("Content-Length", message.size());
+		set_header(symbols::ContentLength, message.size());
 		write(message);
 	}
 	delete m_private;
@@ -136,7 +123,7 @@ int Request::flush_error()
 	return m_private->cgi_data.flush_error();
 }
 
-Request::StringViewMap const& Request::env_map() const
+Request::EnvMap const& Request::env_map() const
 {
 	if (m_private->env_map.empty())
 	{
@@ -150,22 +137,27 @@ Request::StringViewMap const& Request::env_map() const
 
 			std::string_view key = line.substr(0, split_pos);
 			std::string_view val = line.substr(split_pos + 1);
-			const_cast<StringViewMap&>(m_private->env_map).emplace(key, val);
+			const_cast<EnvMap&>(m_private->env_map).emplace(Symbol(key), val);
 		}
 	}
 	return m_private->env_map;
 }
 
-std::string_view Request::env(std::string_view const& key) const
+const Request::HeaderMap & Request::headers() const
 {
-	StringViewMap const& env = env_map();
+	return m_private->headers;
+}
+
+std::string_view Request::env(Symbol key) const
+{
+	EnvMap const& env = env_map();
 	auto iter = env.find(key);
 	return iter != env.cend() ? iter->second : std::string_view();
 }
 
-std::string_view Request::header(std::string_view const& key) const
+std::string_view Request::header(Symbol key) const
 {
-	auto iter = m_private->headers.find(std::string(key));
+	auto iter = m_private->headers.find(key);
 	return iter != m_private->headers.cend() ? iter->second : "200"sv;
 }
 
@@ -214,22 +206,22 @@ bool Request::do_not_track() const
 
 void Request::set_http_status(uint16_t code)
 {
-	m_private->headers.emplace("Status"sv, std::to_string(code));
+	m_private->headers.emplace(symbols::Status, std::to_string(code));
 }
 
 void Request::set_content_type(std::string content_type)
 {
-	m_private->headers.emplace("Content-Type"sv, std::move(content_type));
+	m_private->headers.emplace(symbols::ContentType, std::move(content_type));
 }
 
-void Request::set_header(std::string key, std::string value)
+void Request::set_header(Symbol key, std::string value)
 {
-	m_private->headers.emplace(std::move(key), std::move(value));
+	m_private->headers.emplace(key, std::move(value));
 }
 
-void Request::set_header(std::string key, int value)
+void Request::set_header(Symbol key, int value)
 {
-	m_private->headers.emplace(std::move(key), std::to_string(value));
+	m_private->headers.emplace(key, std::to_string(value));
 }
 
 void Request::send_headers()
@@ -237,15 +229,16 @@ void Request::send_headers()
 	if (m_private->headers_sent)
 		return;
 
-	if (m_private->headers.find("Status") == m_private->headers.cend())
-		m_private->headers.emplace("Status", "200");
+	if (m_private->headers.find(symbols::Status) == m_private->headers.cend())
+		m_private->headers.emplace(symbols::Status, "200");
 
-	if (m_private->headers.find("Content-Type") == m_private->headers.cend())
-		m_private->headers.emplace("Content-Type", "text/html");
+	if (m_private->headers.find(symbols::ContentType) == m_private->headers.cend())
+		m_private->headers.emplace(symbols::ContentType, "text/html");
 
 	for (auto iter : m_private->headers)
 	{
-		m_private->cgi_data.write(reinterpret_cast<const uint8_t*>(iter.first.c_str()), iter.first.size());
+		std::string_view key = iter.first.to_string_view();
+		m_private->cgi_data.write(reinterpret_cast<const uint8_t*>(key.data()), key.size());
 		m_private->cgi_data.write(reinterpret_cast<const uint8_t*>(": "), 2);
 		m_private->cgi_data.write(reinterpret_cast<const uint8_t*>(iter.second.c_str()), iter.second.size());
 		m_private->cgi_data.write(reinterpret_cast<const uint8_t*>("\r\n"), 2);

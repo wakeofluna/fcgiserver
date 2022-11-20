@@ -20,6 +20,10 @@ public:
 	Symbol(std::string_view const& str);
 	Symbol(char const* str);
 
+	static Symbol maybe(std::string const& str);
+	static Symbol maybe(std::string_view const& str);
+	static Symbol maybe(char const* str);
+
 	inline Symbol(Symbol const& other) noexcept : m_id(other.m_id) {}
 	inline Symbol(Symbol && other) noexcept : m_id(other.m_id) { other.m_id = 0; }
 	inline Symbol& operator= (Symbol const& other) noexcept { m_id = other.m_id; return *this; }
@@ -46,6 +50,7 @@ public:
 	inline bool operator>= (Symbol const& other) const noexcept { return compare(other) >= 0; }
 
 private:
+	inline explicit Symbol(unsigned int id) : m_id(id) {}
 	unsigned int m_id;
 };
 

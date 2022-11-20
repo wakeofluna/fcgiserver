@@ -18,6 +18,17 @@ SymbolServer::~SymbolServer()
 	clear();
 }
 
+std::pair<bool, unsigned int> SymbolServer::check_internalization(const std::string_view & str) const
+{
+	if (str.empty())
+		return {true, 0U};
+
+	std::shared_lock<std::shared_mutex> read_lock(m_mutex);
+
+	auto found = m_index.find(str);
+	return found != m_index.end() ? std::make_pair(true, found->second) : std::make_pair(false, 0U);
+}
+
 unsigned int SymbolServer::internalize(std::string_view const& str)
 {
 	if (str.empty())
@@ -51,6 +62,9 @@ unsigned int SymbolServer::internalize(std::string_view const& str)
 	new_str.release();
 
 	m_index[new_view] = new_index;
+
+	//printf("Internalized [%3u] %.*s\n", new_index, int(new_size), str.data());
+
 	return new_index;
 }
 
@@ -73,8 +87,7 @@ std::string_view SymbolServer::resolve(unsigned int symbol_id) const
 SymbolServer::SymbolServer()
 {
 	m_strings.reserve(256);
-	m_strings.emplace_back(nullptr, 0);
-	m_index[std::string_view()] = 0;
+	insert_defaults();
 }
 
 void SymbolServer::clear()
@@ -85,8 +98,13 @@ void SymbolServer::clear()
 		delete[] item.first;
 
 	m_strings.clear();
-	m_strings.emplace_back(nullptr, 0);
 	m_index.clear();
+	insert_defaults();
+}
+
+void SymbolServer::insert_defaults()
+{
+	m_strings.emplace_back(nullptr, 0);
 	m_index[std::string_view()] = 0;
 }
 

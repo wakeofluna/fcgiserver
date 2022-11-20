@@ -20,6 +20,21 @@ Symbol::Symbol(const char * str)
 	m_id = SymbolServer::instance().internalize(str);
 }
 
+Symbol Symbol::maybe(const std::string & str)
+{
+	return Symbol(SymbolServer::instance().check_internalization(str).second);
+}
+
+Symbol Symbol::maybe(const std::string_view & str)
+{
+	return Symbol(SymbolServer::instance().check_internalization(str).second);
+}
+
+Symbol Symbol::maybe(const char * str)
+{
+	return Symbol(SymbolServer::instance().check_internalization(str).second);
+}
+
 int Symbol::compare(const Symbol & other) const noexcept
 {
 	if (m_id == other.m_id) return 0;
