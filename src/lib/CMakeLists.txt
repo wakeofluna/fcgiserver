@@ -2,10 +2,13 @@ set (SOURCES
 	fast_cgi_data.cpp
 	request.cpp
 	server.cpp
+	symbol.cpp
+	symbol_server.cpp
 )
 
 set (PRIVATE_HEADERS
 	fast_cgi_data.h
+	symbol_server.h
 )
 
 set (HEADERS
@@ -16,6 +19,7 @@ set (HEADERS
 	request.h
 	request_method.h
 	server.h
+	symbol.h
 )
 
 set (OTHER
@@ -26,6 +30,7 @@ set (TEST_SOURCES
 	test_mock_cgi_data.h
 	test_mock_cgi_data.cpp
 	test_request.cpp
+	test_symbol.cpp
 )
 
 find_path(FCGI_INCLUDE_DIR NAMES fcgiapp.h PATH_SUFFIXES fcgi fastcgi REQUIRED)
