@@ -43,13 +43,15 @@ public:
 	RequestPrivate(ICgiData & icd)
 	    : cgi_data(icd)
 	    , headers_sent(false)
+	    , query_parsed(false)
 	{}
 
 	ICgiData & cgi_data;
 	Request::EnvMap env_map;
 	Request::HeaderMap headers;
+	Request::QueryParams query;
 	bool headers_sent;
-
+	bool query_parsed;
 };
 
 Request::Request(ICgiData & cgidata)
@@ -137,7 +139,7 @@ Request::EnvMap const& Request::env_map() const
 
 			std::string_view key = line.substr(0, split_pos);
 			std::string_view val = line.substr(split_pos + 1);
-			const_cast<EnvMap&>(m_private->env_map).emplace(Symbol(key), val);
+			m_private->env_map.emplace(Symbol(key), val);
 		}
 	}
 	return m_private->env_map;
@@ -167,25 +169,43 @@ RequestMethod Request::request_method() const
 	return value.empty() ? RequestMethod::UNKNOWN : resolve_method(value);
 }
 
-Request::StringViewMap Request::query() const
+Request::QueryParams const& Request::query() const
 {
-	StringViewMap result;
-
-	std::string_view query_str = query_string();
-	while (!query_str.empty())
+	if (!m_private->query_parsed)
 	{
-		size_t split = query_str.find('&');
+		m_private->query.reserve(16);
 
-		std::string_view element = query_str.substr(0, split);
-		query_str = split == std::string_view::npos ? std::string_view() : query_str.substr(split+1);
+		std::string_view query_str = query_string();
+		while (!query_str.empty())
+		{
+			size_t split = query_str.find('&');
 
-		split = element.find('=');
-		std::string_view key = element.substr(0, split);
-		std::string_view value = split == std::string_view::npos ? std::string_view() : element.substr(split+1);
-		result.emplace(key, value);
+			std::string_view element = query_str.substr(0, split);
+			query_str = split == std::string_view::npos ? std::string_view() : query_str.substr(split+1);
+
+			split = element.find('=');
+			std::string_view key = element.substr(0, split);
+			std::string_view value = split == std::string_view::npos ? std::string_view() : element.substr(split+1);
+			m_private->query.emplace_back(key, value);
+		}
+
+		m_private->query_parsed = true;
 	}
 
-	return result;
+	return m_private->query;
+}
+
+std::pair<bool,std::string_view> Request::query(const std::string_view & key) const
+{
+	Request::QueryParams const& params = query();
+
+	for (auto const& item : params)
+	{
+		if (item.first == key)
+			return std::make_pair(true, item.second);
+	}
+
+	return std::make_pair(false, std::string_view());
 }
 
 int Request::remote_port() const

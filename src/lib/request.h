@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <map>
 #include <unordered_map>
+#include <utility>
 #include <string_view>
 #include <string>
 
@@ -24,7 +25,7 @@ class RequestPrivate;
 class DLL_PUBLIC Request
 {
 public:
-	using StringViewMap = std::map<std::string_view,std::string_view>;
+	using QueryParams = std::vector<std::pair<std::string_view,std::string_view>>;
 	using EnvMap = std::map<Symbol,std::string_view>;
 	using HeaderMap = std::unordered_map<Symbol,std::string>;
 
@@ -64,8 +65,10 @@ public:
 	std::string_view header(Symbol symbol) const;
 	inline std::string_view http_status() const { return header(symbols::Status); }
 
+	QueryParams const& query() const;
+	std::pair<bool,std::string_view> query(std::string_view const& key) const;
+
 	RequestMethod request_method() const;
-	StringViewMap query() const;
 	int remote_port() const;
 	bool do_not_track() const;
 

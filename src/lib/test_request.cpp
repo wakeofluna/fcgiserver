@@ -166,14 +166,14 @@ TEST_CASE("Request-Query", "[request]")
 		envp[1] = "QUERY_STRING=foo=bar";
 		REQUIRE(request.query_string() == "foo=bar");
 
-		auto qmap = request.query();
-		REQUIRE(qmap.size() == 1);
+		auto qparam = request.query();
+		REQUIRE(qparam.size() == 1);
 
-		decltype(qmap.cbegin()) iter;
+		std::pair<bool,std::string_view> iter;
 
-		iter = qmap.find("foo");
-		REQUIRE(iter != qmap.end());
-		REQUIRE(iter->second == "bar");
+		iter = request.query("foo");
+		REQUIRE(iter.first);
+		REQUIRE(iter.second == "bar");
 	}
 
 	SECTION("Multiple elements")
@@ -181,22 +181,22 @@ TEST_CASE("Request-Query", "[request]")
 		envp[1] = "QUERY_STRING=foo=bar&test=whatever&there=no-spoon";
 		REQUIRE(request.query_string() == "foo=bar&test=whatever&there=no-spoon");
 
-		auto qmap = request.query();
-		REQUIRE(qmap.size() == 3);
+		auto qparam = request.query();
+		REQUIRE(qparam.size() == 3);
 
-		decltype(qmap.cbegin()) iter;
+		std::pair<bool,std::string_view> iter;
 
-		iter = qmap.find("foo");
-		REQUIRE(iter != qmap.end());
-		REQUIRE(iter->second == "bar");
+		iter = request.query("foo");
+		REQUIRE(iter.first);
+		REQUIRE(iter.second == "bar");
 
-		iter = qmap.find("test");
-		REQUIRE(iter != qmap.end());
-		REQUIRE(iter->second == "whatever");
+		iter = request.query("test");
+		REQUIRE(iter.first);
+		REQUIRE(iter.second == "whatever");
 
-		iter = qmap.find("there");
-		REQUIRE(iter != qmap.end());
-		REQUIRE(iter->second == "no-spoon");
+		iter = request.query("there");
+		REQUIRE(iter.first);
+		REQUIRE(iter.second == "no-spoon");
 	}
 
 	SECTION("Multiple elements without value")
@@ -204,26 +204,26 @@ TEST_CASE("Request-Query", "[request]")
 		envp[1] = "QUERY_STRING=foo=bar&test&there=no-spoon&beef";
 		REQUIRE(request.query_string() == "foo=bar&test&there=no-spoon&beef");
 
-		auto qmap = request.query();
-		REQUIRE(qmap.size() == 4);
+		auto qparam = request.query();
+		REQUIRE(qparam.size() == 4);
 
-		decltype(qmap.cbegin()) iter;
+		std::pair<bool,std::string_view> iter;
 
-		iter = qmap.find("foo");
-		REQUIRE(iter != qmap.end());
-		REQUIRE(iter->second == "bar");
+		iter = request.query("foo");
+		REQUIRE(iter.first);
+		REQUIRE(iter.second == "bar");
 
-		iter = qmap.find("test");
-		REQUIRE(iter != qmap.end());
-		REQUIRE(iter->second == "");
+		iter = request.query("test");
+		REQUIRE(iter.first);
+		REQUIRE(iter.second == "");
 
-		iter = qmap.find("there");
-		REQUIRE(iter != qmap.end());
-		REQUIRE(iter->second == "no-spoon");
+		iter = request.query("there");
+		REQUIRE(iter.first);
+		REQUIRE(iter.second == "no-spoon");
 
-		iter = qmap.find("beef");
-		REQUIRE(iter != qmap.end());
-		REQUIRE(iter->second == "");
+		iter = request.query("beef");
+		REQUIRE(iter.first);
+		REQUIRE(iter.second == "");
 	}
 
 	SECTION("Multiple elements with equal signs in value")
@@ -231,26 +231,79 @@ TEST_CASE("Request-Query", "[request]")
 		envp[1] = "QUERY_STRING=foo=bar&test&there=no-spoon=true&beef";
 		REQUIRE(request.query_string() == "foo=bar&test&there=no-spoon=true&beef");
 
-		auto qmap = request.query();
-		REQUIRE(qmap.size() == 4);
+		auto qparam = request.query();
+		REQUIRE(qparam.size() == 4);
 
-		decltype(qmap.cbegin()) iter;
+		std::pair<bool,std::string_view> iter;
 
-		iter = qmap.find("foo");
-		REQUIRE(iter != qmap.end());
-		REQUIRE(iter->second == "bar");
+		iter = request.query("foo");
+		REQUIRE(iter.first);
+		REQUIRE(iter.second == "bar");
 
-		iter = qmap.find("test");
-		REQUIRE(iter != qmap.end());
-		REQUIRE(iter->second == "");
+		iter = request.query("test");
+		REQUIRE(iter.first);
+		REQUIRE(iter.second == "");
 
-		iter = qmap.find("there");
-		REQUIRE(iter != qmap.end());
-		REQUIRE(iter->second == "no-spoon=true");
+		iter = request.query("there");
+		REQUIRE(iter.first);
+		REQUIRE(iter.second == "no-spoon=true");
 
-		iter = qmap.find("beef");
-		REQUIRE(iter != qmap.end());
-		REQUIRE(iter->second == "");
+		iter = request.query("beef");
+		REQUIRE(iter.first);
+		REQUIRE(iter.second == "");
+	}
+
+	SECTION("Elements that dont exist")
+	{
+		envp[1] = "QUERY_STRING=foo=bar&test&there=no-spoon&beef";
+		REQUIRE(request.query_string() == "foo=bar&test&there=no-spoon&beef");
+
+		auto qparam = request.query();
+		REQUIRE(qparam.size() == 4);
+
+		std::pair<bool,std::string_view> iter;
+
+		iter = request.query("bar");
+		REQUIRE(!iter.first);
+
+		iter = request.query("no");
+		REQUIRE(!iter.first);
+
+		iter = request.query("spoon");
+		REQUIRE(!iter.first);
+
+		iter = request.query("bee");
+		REQUIRE(!iter.first);
+
+		iter = request.query("test&");
+		REQUIRE(!iter.first);
+	}
+
+	SECTION("Duplicate elements")
+	{
+		envp[1] = "QUERY_STRING=foo=test1&bar=test2&foo=test3";
+		REQUIRE(request.query_string() == "foo=test1&bar=test2&foo=test3");
+
+		auto qparam = request.query();
+		REQUIRE(qparam.size() == 3);
+
+		std::pair<bool,std::string_view> iter;
+
+		iter = request.query("foo");
+		REQUIRE(iter.first);
+		REQUIRE(iter.second == "test1");
+
+		iter = request.query("bar");
+		REQUIRE(iter.first);
+		REQUIRE(iter.second == "test2");
+
+		REQUIRE(qparam[0].first == "foo");
+		REQUIRE(qparam[1].first == "bar");
+		REQUIRE(qparam[2].first == "foo");
+
+		REQUIRE(qparam[0].second == "test1");
+		REQUIRE(qparam[1].second == "test2");
+		REQUIRE(qparam[2].second == "test3");
 	}
 }
 

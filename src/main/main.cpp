@@ -21,6 +21,28 @@ void hello_world(fcgiserver::LogCallback const& logger, fcgiserver::Request & re
 	request.write("<html><body>\n");
 	request.write("<h1>Hello world!</h1>\n");
 
+	auto const& params = request.query();
+	if (!params.empty())
+	{
+		request.write("<h2>Query</h2>");
+		request.write("<table>\n");
+		request.write("<thead><th>Key</th><th>Value</th></thead>\n");
+		request.write("<tbody>\n");
+
+		for (auto const& entry : params)
+		{
+			request.write("<tr><td>");
+			request.write(entry.first);
+			request.write("</td><td>");
+			request.write(entry.second);
+			request.write("</td></tr>");
+		}
+
+		request.write("</tbody>\n");
+		request.write("</table>\n");
+	}
+
+	request.write("<h2>Environment</h2>");
 	request.write("<table>\n");
 	request.write("<thead><th>Key</th><th>Value</th></thead>\n");
 	request.write("<tbody>\n");
