@@ -32,10 +32,22 @@ void hello_world(fcgiserver::LogCallback const& logger, fcgiserver::Request & re
 		for (auto const& entry : params)
 		{
 			request.write("<tr><td>");
-			request.write(entry.first);
+
+			auto entry_key = request.query_decode(entry.first);
+			if (entry_key.first)
+				request.write_html(entry_key.second);
+			else
+				request.write("(invalid sequence)");
+
 			request.write("</td><td>");
-			request.write(entry.second);
-			request.write("</td></tr>");
+
+			auto entry_value = request.query_decode(entry.second);
+			if (entry_value.first)
+				request.write_html(entry_value.second);
+			else
+				request.write("(invalid sequence)");
+
+			request.write("</td></tr>\n");
 		}
 
 		request.write("</tbody>\n");
@@ -53,7 +65,7 @@ void hello_world(fcgiserver::LogCallback const& logger, fcgiserver::Request & re
 		request.write(entry.first.to_string_view());
 		request.write("</td><td>");
 		request.write(entry.second);
-		request.write("</td></tr>");
+		request.write("</td></tr>\n");
 	}
 	request.write("</tbody>\n");
 	request.write("</table>\n");

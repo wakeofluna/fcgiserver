@@ -305,6 +305,43 @@ TEST_CASE("Request-Query", "[request]")
 		REQUIRE(qparam[1].second == "test2");
 		REQUIRE(qparam[2].second == "test3");
 	}
+
+	SECTION("Percent decoding")
+	{
+		std::pair<bool,std::u32string> result;
+
+		result = Request::query_decode("test%20environment");
+		REQUIRE( result.first );
+		REQUIRE( result.second == U"test environment" );
+
+		result = Request::query_decode("percent%25hack");
+		REQUIRE( result.first );
+		REQUIRE( result.second == U"percent%hack" );
+
+		result = Request::query_decode("invalid%a%Percent");
+		REQUIRE( result.first );
+		REQUIRE( result.second == U"invalid%a%Percent");
+
+		result = Request::query_decode("%48%49%4A%4B%4c%4d%4E%4f%50%51");
+		REQUIRE( result.first );
+		REQUIRE( result.second == U"HIJKLMNOPQ" );
+
+		result = Request::query_decode("trailing%20percent%");
+		REQUIRE( result.first );
+		REQUIRE( result.second == U"trailing percent%");
+
+		result = Request::query_decode("trailing%20percent%2");
+		REQUIRE( result.first );
+		REQUIRE( result.second == U"trailing percent%2");
+
+		result = Request::query_decode("trailing%20percent%20");
+		REQUIRE( result.first );
+		REQUIRE( result.second == U"trailing percent ");
+
+		result = Request::query_decode("multibyte%20is%20evil%E2%84%a2right%40");
+		REQUIRE( result.first );
+		REQUIRE( result.second == U"multibyte is evil™right@");
+	}
 }
 
 TEST_CASE("Request-Port", "[request]")
@@ -415,5 +452,94 @@ TEST_CASE("Request-DoNotTrack", "[request]")
 
 		bool dnt = request.do_not_track();
 		REQUIRE(dnt == false);
+	}
+}
+
+TEST_CASE("Request-UTF8", "[request]")
+{
+	const char *envp[] = {
+	    nullptr,
+	    nullptr
+	};
+
+	MockCgiData cgidata(std::string(), envp);
+	Request request(cgidata);
+
+	std::string_view line = "test \xe2\x84\xa2 true"sv;
+	std::u32string_view line32 = U"test ™ true"sv;
+	std::string_view line_invalid = "test \xe2\xf4\xa2 true"sv;
+
+	// Force out the headers first for the writing tests
+	request.send_headers();
+	cgidata.m_writebuf.clear();
+
+	SECTION("Decode UTF8")
+	{
+		auto result = request.utf8_decode(line);
+		REQUIRE( result.first );
+		REQUIRE( result.second == line32 );
+	}
+
+	SECTION("Decode invalid UTF8")
+	{
+		auto result = request.utf8_decode(line_invalid);
+		REQUIRE( !result.first );
+		REQUIRE( result.second.empty() );
+	}
+
+	SECTION("Encode UTF8")
+	{
+		auto result = request.utf8_encode(line32);
+		REQUIRE( result.first );
+		REQUIRE( result.second == line );
+	}
+
+	SECTION("Write UTF8 as HTML")
+	{
+		int len = request.write_html(line);
+		REQUIRE( len == 18 );
+		REQUIRE( cgidata.m_writebuf == "test &#x2122; true" );
+	}
+
+	SECTION("Write invalid UTF8 as HTML")
+	{
+		int len = request.write_html(line_invalid);
+		REQUIRE( len == -1 );
+		REQUIRE( cgidata.m_writebuf == "test " );
+	}
+
+	SECTION("Write UTF32 as HTML")
+	{
+		int len = request.write_html(line32);
+		REQUIRE( len == 18 );
+		REQUIRE( cgidata.m_writebuf == "test &#x2122; true" );
+	}
+
+	SECTION("Write UTF8 as UTF8")
+	{
+		int len = request.write(line);
+		REQUIRE( len == 13 );
+		REQUIRE( cgidata.m_writebuf == line );
+	}
+
+	SECTION("Write UTF32 as UTF8")
+	{
+		int len = request.write(line32);
+		REQUIRE( len == 13 );
+		REQUIRE( cgidata.m_writebuf == line );
+	}
+
+	SECTION("Error UTF8 as UTF8")
+	{
+		int len = request.error(line);
+		REQUIRE( len == 13 );
+		REQUIRE( cgidata.m_errorbuf == line );
+	}
+
+	SECTION("Error UTF32 as UTF8")
+	{
+		int len = request.error(line32);
+		REQUIRE( len == 13 );
+		REQUIRE( cgidata.m_errorbuf == line );
 	}
 }
