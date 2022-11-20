@@ -268,6 +268,9 @@ void Server::thread_function()
 
 		m_private->callback(m_private->log_callback, request);
 
+		// Make sure the headers are sent
+		request.write(nullptr, 0);
+
 		std::string_view remote = request.remote_addr();
 		std::string_view method = request.request_method_string();
 		std::string_view uri = request.document_uri();
