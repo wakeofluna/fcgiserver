@@ -8,7 +8,6 @@ namespace fcgiserver
 
 enum class RequestMethod : std::uint8_t
 {
-	UNKNOWN,
 	GET,
 	HEAD,
 	POST,
@@ -18,7 +17,12 @@ enum class RequestMethod : std::uint8_t
 	OPTIONS,
 	TRACE,
 	PATCH,
-	OTHER,
+
+	// Special values
+	Unknown,
+	Other,
+	CatchAllHere,
+	CatchAllRecursive,
 };
 
 } // namespace fcgiserver

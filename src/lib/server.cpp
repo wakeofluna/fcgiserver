@@ -58,14 +58,12 @@ public:
 	EmptyRouter() {}
 	~EmptyRouter() {}
 
-	void handle_request(const fcgiserver::LogCallback & logger, fcgiserver::Request & request) override
+	RouteResult handle_request(const fcgiserver::LogCallback & logger, fcgiserver::Request & request) override
 	{
 		std::string_view uri = request.document_uri();
 		if (uri != "/"sv)
-		{
-			request.set_http_status(404);
-			return;
-		}
+			return RouteResult::NotFound;
+
 		request.set_content_type("text/html");
 		request.write("<!DOCTYPE html>\n");
 		request.write("<html lang=\"en\">\n");
@@ -74,6 +72,7 @@ public:
 		request.write("<h1>Hello world</h1>\n");
 		request.write("Congratulations! Your server is working. Now it is time to register a router and add some content!\n");
 		request.write("</body>\n</html>\n");
+		return RouteResult::Handled;
 	}
 };
 
@@ -298,7 +297,22 @@ void Server::thread_function()
 		fcgiserver::FastCgiData fcgi_data(fcgx_request);
 		fcgiserver::Request request(fcgi_data);
 
-		m_private->router->handle_request(m_private->log_callback, request);
+		IRouter::RouteResult route_result = m_private->router->handle_request(m_private->log_callback, request);
+		if (request.http_status().empty())
+		{
+			switch (route_result)
+			{
+				case IRouter::RouteResult::Handled:
+					request.set_http_status(200);
+					break;
+				case IRouter::RouteResult::NotFound:
+					request.set_http_status(404);
+					break;
+				case IRouter::RouteResult::InvalidMethod:
+					request.set_http_status(405);
+					break;
+			}
+		}
 
 		// Make sure the headers are sent
 		request.send_headers();

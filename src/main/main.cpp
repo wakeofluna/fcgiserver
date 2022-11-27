@@ -1,23 +1,16 @@
 #include "request.h"
+#include "router.h"
 #include "server.h"
 #include <cstdio>
-#include <fcgiapp.h>
-
-using namespace std::literals::string_view_literals;
 
 namespace
 {
 
 void hello_world(fcgiserver::LogCallback const& logger, fcgiserver::Request & request)
 {
-	std::string_view uri = request.document_uri();
+	request.set_content_type("text/html");
 
-	if (uri != "/"sv)
-	{
-		request.set_http_status(404);
-		return;
-	}
-
+	request.write("<!DOCTYPE html>\n");
 	request.write("<html><body>\n");
 	request.write("<h1>Hello world!</h1>\n");
 
@@ -77,9 +70,11 @@ void hello_world(fcgiserver::LogCallback const& logger, fcgiserver::Request & re
 
 int main(int argc, char **argv)
 {
-	fcgiserver::Server server;
+	auto router = std::make_shared<fcgiserver::Router>();
+	router->add_route(&hello_world, "/", fcgiserver::RequestMethod::GET);
 
-	//server.set_callback(hello_world);
+	fcgiserver::Server server;
+	server.set_router(router);
 
 	if (!server.initialize("/tmp/fcgiserver.sock"))
 		return EXIT_FAILURE;

@@ -32,7 +32,7 @@ RequestMethod resolve_method(std::string_view const& method)
 	if (sym == symbols::OPTIONS)
 		return RequestMethod::OPTIONS;
 
-	return RequestMethod::OTHER;
+	return RequestMethod::Other;
 }
 
 std::pair<bool,uint8_t> unhex(char const* ch)
@@ -203,6 +203,7 @@ public:
 	Request::HeaderMap headers;
 	Request::QueryParams query;
 	Request::Route route;
+	Request::Route relative_route;
 	bool headers_sent;
 	bool query_parsed;
 	bool route_parsed;
@@ -405,16 +406,16 @@ std::string_view Request::env(Symbol key) const
 std::string_view Request::header(Symbol key) const
 {
 	auto iter = m_private->headers.find(key);
-	return iter != m_private->headers.cend() ? iter->second : "200"sv;
+	return iter != m_private->headers.cend() ? iter->second : std::string_view();
 }
 
 RequestMethod Request::request_method() const
 {
 	std::string_view value = request_method_string();
-	return value.empty() ? RequestMethod::UNKNOWN : resolve_method(value);
+	return value.empty() ? RequestMethod::Unknown : resolve_method(value);
 }
 
-Request::Route const& Request::route() const
+Request::Route const& Request::full_route() const
 {
 	if (!m_private->route_parsed)
 	{
@@ -433,9 +434,22 @@ Request::Route const& Request::route() const
 		}
 
 		m_private->route_parsed = true;
+		m_private->relative_route = m_private->route;
 	}
 
 	return m_private->route;
+}
+
+Request::Route const& Request::relative_route() const
+{
+	if (!m_private->route_parsed)
+		full_route();
+	return m_private->relative_route;
+}
+
+void Request::swap_relative_route(Request::Route & route)
+{
+	m_private->relative_route.swap(route);
 }
 
 Request::QueryParams const& Request::query() const
@@ -607,9 +621,6 @@ void Request::send_headers()
 
 	if (m_private->headers.find(symbols::Status) == m_private->headers.cend())
 		m_private->headers.emplace(symbols::Status, "200");
-
-	if (m_private->headers.find(symbols::ContentType) == m_private->headers.cend())
-		m_private->headers.emplace(symbols::ContentType, "text/html");
 
 	for (auto iter : m_private->headers)
 	{

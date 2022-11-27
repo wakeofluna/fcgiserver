@@ -11,6 +11,7 @@
 namespace fcgiserver
 {
 
+class RouterPrivate;
 class DLL_PUBLIC Router : public IRouter
 {
 public:
@@ -20,13 +21,14 @@ public:
 	Router();
 	~Router();
 
-	void handle_request(LogCallback const& logger, Request & request) override;
+	IRouter::RouteResult handle_request(LogCallback const& logger, Request & request) override;
 
-	bool add_route(std::string_view const& route, std::shared_ptr<IRouter> router);
-	bool add_route(std::string_view const& route, Callback && callback);
-	bool add_route(RequestMethod method, std::string_view const& route, Callback && callback);
-
+	void add_route(std::shared_ptr<IRouter> router, std::string_view const& route);
+	void add_route(Callback && callback, std::string_view const& route, RequestMethod method = RequestMethod::CatchAllHere);
 	bool remove_route(std::string_view const& route);
+
+protected:
+	RouterPrivate * m_private;
 };
 
 }

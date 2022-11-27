@@ -39,5 +39,9 @@ DLL_PUBLIC Symbol DELETE("DELETE");
 DLL_PUBLIC Symbol CONNECT("CONNECT");
 DLL_PUBLIC Symbol OPTIONS("OPTIONS");
 
+// Other common symbols
+DLL_PUBLIC Symbol api("api");
+DLL_PUBLIC Symbol wildcard("*");
+
 }
 }

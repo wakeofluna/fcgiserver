@@ -39,6 +39,10 @@ extern Symbol const DELETE;
 extern Symbol const CONNECT;
 extern Symbol const OPTIONS;
 
+// Other common symbols
+extern Symbol const api;
+extern Symbol const wildcard;
+
 }
 
 }

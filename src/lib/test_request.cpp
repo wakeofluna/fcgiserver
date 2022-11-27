@@ -86,7 +86,7 @@ TEST_CASE("Request-RequestMethod", "[request]")
 	SECTION("UNKNOWN")
 	{
 		envp[0] = "Request_Method=GET";
-		REQUIRE(request.request_method() == RequestMethod::UNKNOWN);
+		REQUIRE(request.request_method() == RequestMethod::Unknown);
 		REQUIRE(request.request_method_string().empty());
 	}
 
@@ -121,14 +121,14 @@ TEST_CASE("Request-RequestMethod", "[request]")
 	SECTION("OTHER-OTHER")
 	{
 		envp[0] = "REQUEST_METHOD=OTHER";
-		REQUIRE(request.request_method() == RequestMethod::OTHER);
+		REQUIRE(request.request_method() == RequestMethod::Other);
 		REQUIRE(request.request_method_string() == "OTHER");
 	}
 
 	SECTION("OTHER-GETT")
 	{
 		envp[0] = "REQUEST_METHOD=GETT";
-		REQUIRE(request.request_method() == RequestMethod::OTHER);
+		REQUIRE(request.request_method() == RequestMethod::Other);
 		REQUIRE(request.request_method_string() == "GETT");
 	}
 }
@@ -556,21 +556,21 @@ TEST_CASE("Request-Route", "[request]")
 
 	SECTION("No URI")
 	{
-		auto route = request.route();
+		auto route = request.full_route();
 		REQUIRE( route.empty() );
 	}
 
 	SECTION("Root URI")
 	{
 		envp[0] = "DOCUMENT_URI=/";
-		auto route = request.route();
+		auto route = request.full_route();
 		REQUIRE( route.empty() );
 	}
 
 	SECTION("URI with one path component no trailing slash")
 	{
 		envp[0] = "DOCUMENT_URI=/foobar";
-		auto route = request.route();
+		auto route = request.full_route();
 		REQUIRE( route.size() == 1 );
 		REQUIRE( route[0] == "foobar"sv );
 	}
@@ -578,7 +578,7 @@ TEST_CASE("Request-Route", "[request]")
 	SECTION("URI with one path component and trailing slash")
 	{
 		envp[0] = "DOCUMENT_URI=/foobar/";
-		auto route = request.route();
+		auto route = request.full_route();
 		REQUIRE( route.size() == 1 );
 		REQUIRE( route[0] == "foobar"sv );
 	}
@@ -586,7 +586,7 @@ TEST_CASE("Request-Route", "[request]")
 	SECTION("URI with three components")
 	{
 		envp[0] = "DOCUMENT_URI=/foobar/dead/beef/";
-		auto route = request.route();
+		auto route = request.full_route();
 		REQUIRE( route.size() == 3 );
 		REQUIRE( route[0] == "foobar"sv );
 		REQUIRE( route[1] == "dead"sv );

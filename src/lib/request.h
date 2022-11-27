@@ -81,7 +81,9 @@ public:
 	static std::pair<bool,std::string> utf8_encode(std::u32string_view const& value);
 
 	RequestMethod request_method() const;
-	Route const& route() const;
+	Route const& full_route() const;
+	Route const& relative_route() const;
+	void swap_relative_route(Route & route);
 	int remote_port() const;
 	bool do_not_track() const;
 

@@ -35,6 +35,7 @@ set (TEST_SOURCES
 	test_mock_cgi_data.h
 	test_mock_cgi_data.cpp
 	test_request.cpp
+	test_router.cpp
 	test_symbol.cpp
 )
 

@@ -12,8 +12,16 @@ class Request;
 class DLL_PUBLIC IRouter
 {
 public:
-	virtual ~IRouter() {}
-	virtual void handle_request(fcgiserver::LogCallback const& logger, fcgiserver::Request & request) = 0;
+	enum class RouteResult
+	{
+		Handled,
+		NotFound,
+		InvalidMethod,
+	};
+
+public:
+	virtual ~IRouter() = default;
+	virtual RouteResult handle_request(fcgiserver::LogCallback const& logger, fcgiserver::Request & request) = 0;
 };
 
 } // namespace fcgiserver
