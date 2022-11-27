@@ -1,6 +1,7 @@
 #include "server.h"
 #include "request.h"
 #include "fast_cgi_data.h"
+#include "i_router.h"
 
 #include <cstdarg>
 #include <cerrno>
@@ -50,6 +51,32 @@ void default_logger(fcgiserver::LogLevel lvl, const char *msg)
 	}
 }
 
+// Tiny default router
+class EmptyRouter : public fcgiserver::IRouter
+{
+public:
+	EmptyRouter() {}
+	~EmptyRouter() {}
+
+	void handle_request(const fcgiserver::LogCallback & logger, fcgiserver::Request & request) override
+	{
+		std::string_view uri = request.document_uri();
+		if (uri != "/"sv)
+		{
+			request.set_http_status(404);
+			return;
+		}
+		request.set_content_type("text/html");
+		request.write("<!DOCTYPE html>\n");
+		request.write("<html lang=\"en\">\n");
+		request.write("<head><meta charset=\"utf-8\" /><title>FCGIserver online</title></head>\n");
+		request.write("<body>\n");
+		request.write("<h1>Hello world</h1>\n");
+		request.write("Congratulations! Your server is working. Now it is time to register a router and add some content!\n");
+		request.write("</body>\n</html>\n");
+	}
+};
+
 }
 
 
@@ -85,7 +112,7 @@ public:
 	std::string socket_path;
 	int socket_fd;
 	LogCallback log_callback;
-	Server::Callback callback;
+	std::shared_ptr<IRouter> router;
 	std::list<std::thread> threads;
 };
 
@@ -103,9 +130,14 @@ Server::~Server()
 	delete m_private;
 }
 
-void Server::set_callback(Callback && callback)
+void Server::set_router(std::shared_ptr<IRouter> router)
 {
-	m_private->callback = std::move(callback);
+	if (!router)
+	{
+		m_private->log(LogLevel::Error, "Attempted to register an invalid router");
+		return;
+	}
+	m_private->router = router;
 }
 
 void Server::set_log_callback(LogCallback && callback)
@@ -161,10 +193,10 @@ bool Server::initialize(std::string socket_path)
 
 bool Server::add_threads(size_t count)
 {
-	if (!m_private->callback)
+	if (!m_private->router)
 	{
-		m_private->log(LogLevel::Error, "Cannot add threads, no callback function registered\n");
-		return false;
+		m_private->log(LogLevel::Error, "No router provided, adding an empty route\n");
+		m_private->router.reset(new EmptyRouter());
 	}
 
 	m_private->logf(LogLevel::Info, "Starting %u threads\n", count);
@@ -266,7 +298,7 @@ void Server::thread_function()
 		fcgiserver::FastCgiData fcgi_data(fcgx_request);
 		fcgiserver::Request request(fcgi_data);
 
-		m_private->callback(m_private->log_callback, request);
+		m_private->router->handle_request(m_private->log_callback, request);
 
 		// Make sure the headers are sent
 		request.send_headers();

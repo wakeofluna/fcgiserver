@@ -79,7 +79,7 @@ int main(int argc, char **argv)
 {
 	fcgiserver::Server server;
 
-	server.set_callback(hello_world);
+	//server.set_callback(hello_world);
 
 	if (!server.initialize("/tmp/fcgiserver.sock"))
 		return EXIT_FAILURE;

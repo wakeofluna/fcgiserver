@@ -1,6 +1,7 @@
 set (SOURCES
 	fast_cgi_data.cpp
 	request.cpp
+	router.cpp
 	server.cpp
 	symbol.cpp
 	symbol_server.cpp
@@ -14,11 +15,13 @@ set (PRIVATE_HEADERS
 
 set (HEADERS
 	i_cgi_data.h
+	i_router.h
 	fcgiserver.h
 	fcgiserver_defs.h
 	logger.h
 	request.h
 	request_method.h
+	router.h
 	server.h
 	symbol.h
 	symbols.h

@@ -5,24 +5,23 @@
 #include "logger.h"
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 
 namespace fcgiserver
 {
 
 class Request;
+class IRouter;
 class ServerPrivate;
 
 class DLL_PUBLIC Server
 {
 public:
-	using Callback = std::function<void(LogCallback const&, Request&)>;
-
-public:
 	Server();
 	~Server();
 
-	void set_callback(Callback && callback);
+	void set_router(std::shared_ptr<IRouter> router);
 	void set_log_callback(LogCallback && callback);
 	void log(LogLevel lvl, const char * msg) const;
 
