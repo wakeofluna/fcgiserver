@@ -195,14 +195,17 @@ public:
 	    : cgi_data(icd)
 	    , headers_sent(false)
 	    , query_parsed(false)
+	    , route_parsed(false)
 	{}
 
 	ICgiData & cgi_data;
 	Request::EnvMap env_map;
 	Request::HeaderMap headers;
 	Request::QueryParams query;
+	Request::Route route;
 	bool headers_sent;
 	bool query_parsed;
+	bool route_parsed;
 };
 
 Request::Request(ICgiData & cgidata)
@@ -409,6 +412,30 @@ RequestMethod Request::request_method() const
 {
 	std::string_view value = request_method_string();
 	return value.empty() ? RequestMethod::UNKNOWN : resolve_method(value);
+}
+
+Request::Route const& Request::route() const
+{
+	if (!m_private->route_parsed)
+	{
+		m_private->route.reserve(16);
+
+		std::string_view uri = document_uri();
+		while (!uri.empty())
+		{
+			size_t split = uri.find('/');
+
+			std::string_view element = uri.substr(0, split);
+			uri = (split == std::string_view::npos) ? std::string_view() : uri.substr(split+1);
+
+			if (!element.empty())
+				m_private->route.emplace_back(element);
+		}
+
+		m_private->route_parsed = true;
+	}
+
+	return m_private->route;
 }
 
 Request::QueryParams const& Request::query() const

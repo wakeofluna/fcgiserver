@@ -543,3 +543,53 @@ TEST_CASE("Request-UTF8", "[request]")
 		REQUIRE( cgidata.m_errorbuf == line );
 	}
 }
+
+TEST_CASE("Request-Route", "[request]")
+{
+	const char *envp[] = {
+	    nullptr,
+	    nullptr
+	};
+
+	MockCgiData cgidata(std::string(), envp);
+	Request request(cgidata);
+
+	SECTION("No URI")
+	{
+		auto route = request.route();
+		REQUIRE( route.empty() );
+	}
+
+	SECTION("Root URI")
+	{
+		envp[0] = "DOCUMENT_URI=/";
+		auto route = request.route();
+		REQUIRE( route.empty() );
+	}
+
+	SECTION("URI with one path component no trailing slash")
+	{
+		envp[0] = "DOCUMENT_URI=/foobar";
+		auto route = request.route();
+		REQUIRE( route.size() == 1 );
+		REQUIRE( route[0] == "foobar"sv );
+	}
+
+	SECTION("URI with one path component and trailing slash")
+	{
+		envp[0] = "DOCUMENT_URI=/foobar/";
+		auto route = request.route();
+		REQUIRE( route.size() == 1 );
+		REQUIRE( route[0] == "foobar"sv );
+	}
+
+	SECTION("URI with three components")
+	{
+		envp[0] = "DOCUMENT_URI=/foobar/dead/beef/";
+		auto route = request.route();
+		REQUIRE( route.size() == 3 );
+		REQUIRE( route[0] == "foobar"sv );
+		REQUIRE( route[1] == "dead"sv );
+		REQUIRE( route[2] == "beef"sv );
+	}
+}

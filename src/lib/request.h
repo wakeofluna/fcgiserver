@@ -28,6 +28,7 @@ public:
 	using QueryParams = std::vector<std::pair<std::string_view,std::string_view>>;
 	using EnvMap = std::map<Symbol,std::string_view>;
 	using HeaderMap = std::unordered_map<Symbol,std::string>;
+	using Route = std::vector<std::string_view>;
 
 	Request(ICgiData & cgidata);
 	~Request();
@@ -80,6 +81,7 @@ public:
 	static std::pair<bool,std::string> utf8_encode(std::u32string_view const& value);
 
 	RequestMethod request_method() const;
+	Route const& route() const;
 	int remote_port() const;
 	bool do_not_track() const;
 
