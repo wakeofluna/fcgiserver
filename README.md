@@ -66,9 +66,9 @@ init-process such as systemd.
 * Finalizing will stop accepting new connections and stop all service threads
 
 ```C++
-#include "request.h"
-#include "router.h"
-#include "server.h"
+#include <fcgiserver/request.h>
+#include <fcgiserver/router.h>
+#include <fcgiserver/server.h>
 #include <cstdio>
 
 namespace
@@ -119,7 +119,6 @@ find_package(fcgiserver REQUIRED)
 add_executable(fcgiserver_demo main.cpp)
 target_link_libraries(fcgiserver_demo PRIVATE fcgiserver)
 ```
-
 Setup
 -----
 The easiest way to setup a compiled server is to hook it into an existing

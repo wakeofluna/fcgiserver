@@ -29,6 +29,8 @@ set (HEADERS
 
 set (OTHER
 	${CMAKE_SOURCE_DIR}/cmake/fcgiserverConfig.cmake.in
+	${CMAKE_SOURCE_DIR}/README.md
+	${CMAKE_SOURCE_DIR}/LICENSE
 )
 
 set (TEST_SOURCES
@@ -47,7 +49,7 @@ add_library(fcgiserver SHARED ${SOURCES} ${PRIVATE_HEADERS} ${HEADERS} ${OTHER})
 target_include_directories(fcgiserver SYSTEM PRIVATE ${FCGI_INCLUDE_DIR})
 target_include_directories(fcgiserver INTERFACE
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-	$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/fcgiserver>
+	$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 target_link_libraries(fcgiserver PRIVATE ${FCGI_LIBRARY} Threads::Threads)
 
@@ -65,18 +67,18 @@ install (TARGETS fcgiserver
 )
 install(
 	EXPORT fcgiserverTargets
-	DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake
+	DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fcgiserver
 )
 
 include(CMakePackageConfigHelpers)
 configure_package_config_file(
 	${CMAKE_SOURCE_DIR}/cmake/fcgiserverConfig.cmake.in
 	${CMAKE_CURRENT_BINARY_DIR}/fcgiserverConfig.cmake
-	INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake
+	INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fcgiserver
 )
 install(
 	FILES ${CMAKE_CURRENT_BINARY_DIR}/fcgiserverConfig.cmake
-	DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake
+	DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fcgiserver
 )
 
 catchtest(fcgiserver ${TEST_SOURCES})
