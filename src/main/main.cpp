@@ -6,7 +6,7 @@
 namespace
 {
 
-void hello_world(fcgiserver::LogCallback const& logger, fcgiserver::Request & request)
+void hello_world(fcgiserver::Logger const& logger, fcgiserver::Request & request)
 {
 	request.set_content_type("text/html");
 
@@ -83,10 +83,10 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 
 	server.wait_for_terminate_signal();
-	server.log(fcgiserver::LogLevel::Info, "Initiating shutdown...\n");
+	server.logger().log(fcgiserver::LogLevel::Info, "Initiating shutdown...");
 
 	server.finalize();
-	server.log(fcgiserver::LogLevel::Info, "All done!\n");
+	server.logger().log(fcgiserver::LogLevel::Info, "All done!");
 
 	return EXIT_SUCCESS;
 }

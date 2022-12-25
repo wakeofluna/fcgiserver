@@ -22,8 +22,7 @@ public:
 	~Server();
 
 	void set_router(std::shared_ptr<IRouter> router);
-	void set_log_callback(LogCallback && callback);
-	void log(LogLevel lvl, const char * msg) const;
+	Logger & logger();
 
 	bool initialize(std::string socket_path);
 	bool add_threads(size_t count);

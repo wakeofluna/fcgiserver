@@ -93,7 +93,7 @@ Router::~Router()
 	delete m_private;
 }
 
-IRouter::RouteResult Router::handle_request(LogCallback const& logger, Request & request)
+IRouter::RouteResult Router::handle_request(Logger const& logger, Request & request)
 {
 	std::shared_lock<std::shared_mutex> lock(m_private->route_mutex);
 

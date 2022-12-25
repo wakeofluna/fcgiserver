@@ -21,7 +21,7 @@ public:
 
 public:
 	virtual ~IRouter() = default;
-	virtual RouteResult handle_request(fcgiserver::LogCallback const& logger, fcgiserver::Request & request) = 0;
+	virtual RouteResult handle_request(fcgiserver::Logger const& logger, fcgiserver::Request & request) = 0;
 };
 
 } // namespace fcgiserver

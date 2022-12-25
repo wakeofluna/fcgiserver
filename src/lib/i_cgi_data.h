@@ -11,7 +11,7 @@ namespace fcgiserver
 class DLL_PUBLIC ICgiData
 {
 public:
-	virtual ~ICgiData() {}
+	virtual ~ICgiData() = default;
 
 	virtual int read(uint8_t * buffer, size_t bufsize) = 0;
 	virtual int write(const uint8_t * buffer, size_t bufsize) = 0;

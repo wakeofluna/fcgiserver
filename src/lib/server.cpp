@@ -2,6 +2,8 @@
 #include "request.h"
 #include "fast_cgi_data.h"
 #include "i_router.h"
+#include "console_log_callback.h"
+#include "logger.h"
 
 #include <cstdarg>
 #include <cerrno>
@@ -24,33 +26,6 @@ void sigusr1(int signum, siginfo_t *info, void *ucontext)
 {
 }
 
-// Default streams logger function
-void default_logger(fcgiserver::LogLevel lvl, const char *msg)
-{
-	static std::mutex mutex;
-
-	std::lock_guard<std::mutex> guard(mutex);
-
-	switch (lvl)
-	{
-		case fcgiserver::LogLevel::Debug:
-			std::fputs("[DEBUG] ", stdout);
-			std::fputs(msg, stdout);
-			std::fflush(stdout);
-			break;
-		case fcgiserver::LogLevel::Info:
-			std::fputs("[INFO] ", stdout);
-			std::fputs(msg, stdout);
-			std::fflush(stdout);
-			break;
-		case fcgiserver::LogLevel::Error:
-			std::fputs("[ERROR] ", stderr);
-			std::fputs(msg, stderr);
-			std::fflush(stderr);
-			break;
-	}
-}
-
 // Tiny default router
 class EmptyRouter : public fcgiserver::IRouter
 {
@@ -58,7 +33,7 @@ public:
 	EmptyRouter() {}
 	~EmptyRouter() {}
 
-	RouteResult handle_request(const fcgiserver::LogCallback & logger, fcgiserver::Request & request) override
+	RouteResult handle_request(fcgiserver::Logger const& logger, fcgiserver::Request & request) override
 	{
 		std::string_view uri = request.document_uri();
 		if (uri != "/"sv)
@@ -87,30 +62,22 @@ class ServerPrivate
 public:
 	ServerPrivate() : socket_fd(0) {}
 
-	void log(LogLevel lvl, const char * msg) const
+	inline void log(LogLevel lvl, const char * msg) const
 	{
-		if (log_callback)
-			log_callback(lvl, msg);
+		logger.log(lvl, msg);
 	}
 
 	void logf(LogLevel lvl, const char * fmt, ...) const
 	{
-		if (log_callback)
-		{
-			char buffer[512];
-
-			std::va_list vl;
-			va_start(vl, fmt);
-			std::vsnprintf(buffer, sizeof(buffer), fmt, vl);
-			va_end(vl);
-
-			log_callback(lvl, buffer);
-		}
+		std::va_list vl;
+		va_start(vl, fmt);
+		logger.stream(lvl).vprintf(fmt, vl);
+		va_end(vl);
 	}
 
 	std::string socket_path;
 	int socket_fd;
-	LogCallback log_callback;
+	Logger logger;
 	std::shared_ptr<IRouter> router;
 	std::list<std::thread> threads;
 };
@@ -120,7 +87,7 @@ public:
 Server::Server()
     : m_private(new ServerPrivate)
 {
-	m_private->log_callback = &default_logger;
+	m_private->logger.set_log_callback(std::make_unique<ConsoleLogCallback>());
 }
 
 Server::~Server()
@@ -139,14 +106,9 @@ void Server::set_router(std::shared_ptr<IRouter> router)
 	m_private->router = router;
 }
 
-void Server::set_log_callback(LogCallback && callback)
+Logger & Server::logger()
 {
-	m_private->log_callback = std::move(callback);
-}
-
-void Server::log(LogLevel lvl, const char * msg) const
-{
-	m_private->log(lvl, msg);
+	return m_private->logger;
 }
 
 bool Server::initialize(std::string socket_path)
@@ -156,7 +118,7 @@ bool Server::initialize(std::string socket_path)
 	int result = FCGX_Init();
 	if (result != 0)
 	{
-		m_private->logf(LogLevel::Error, "Error %d on FCGX_Init!\n", result);
+		m_private->logf(LogLevel::Error, "Error %d on FCGX_Init!", result);
 		return false;
 	}
 
@@ -165,7 +127,7 @@ bool Server::initialize(std::string socket_path)
 		// Running standalone, need to create our own socket
 		if (socket_path.empty())
 		{
-			m_private->log(LogLevel::Error, "Running as CGI but no socket_path given!\n");
+			m_private->log(LogLevel::Error, "Running as CGI but no socket_path given!");
 			return false;
 		}
 
@@ -174,7 +136,7 @@ bool Server::initialize(std::string socket_path)
 		sockfd = FCGX_OpenSocket(socket_path.c_str(), 10);
 		if (sockfd == -1)
 		{
-			m_private->logf(LogLevel::Error, "Create socket error : %s\n", strerror(errno));
+			m_private->logf(LogLevel::Error, "Create socket error : %s", strerror(errno));
 			return false;
 		}
 
@@ -194,11 +156,11 @@ bool Server::add_threads(size_t count)
 {
 	if (!m_private->router)
 	{
-		m_private->log(LogLevel::Error, "No router provided, adding an empty route\n");
+		m_private->log(LogLevel::Error, "No router provided, adding an empty route");
 		m_private->router.reset(new EmptyRouter());
 	}
 
-	m_private->logf(LogLevel::Info, "Starting %u threads\n", count);
+	m_private->logf(LogLevel::Info, "Starting %u threads", count);
 
 	for (unsigned int i = 0; i < count; ++i)
 		m_private->threads.emplace_back(&Server::run_thread_function, this);
@@ -278,11 +240,11 @@ void Server::thread_function()
 	result = FCGX_InitRequest(&fcgx_request, m_private->socket_fd, 0);
 	if (result != 0)
 	{
-		m_private->logf(LogLevel::Error, "Error %d on FCGX_InitRequest! (%s)\n", result, strerror(-result));
+		m_private->logf(LogLevel::Error, "Error %d on FCGX_InitRequest! (%s)", result, strerror(-result));
 		return;
 	}
 
-	m_private->log(LogLevel::Info, "Thread started\n");
+	m_private->log(LogLevel::Info, "Thread started");
 
 	while (true)
 	{
@@ -290,14 +252,14 @@ void Server::thread_function()
 		if (result != 0)
 		{
 			if (result != -EINTR)
-				m_private->logf(LogLevel::Error, "Error %d on FCGX_Accept_r! (%s)\n", result, strerror(-result));
+				m_private->logf(LogLevel::Error, "Error %d on FCGX_Accept_r! (%s)", result, strerror(-result));
 			break;
 		}
 
 		fcgiserver::FastCgiData fcgi_data(fcgx_request);
 		fcgiserver::Request request(fcgi_data);
 
-		IRouter::RouteResult route_result = m_private->router->handle_request(m_private->log_callback, request);
+		IRouter::RouteResult route_result = m_private->router->handle_request(m_private->logger, request);
 		if (request.http_status().empty())
 		{
 			switch (route_result)
@@ -317,14 +279,12 @@ void Server::thread_function()
 		// Make sure the headers are sent
 		request.send_headers();
 
-		std::string_view remote = request.remote_addr();
-		std::string_view method = request.request_method_string();
-		std::string_view uri = request.document_uri();
-		std::string_view status = request.http_status();
-		m_private->logf(LogLevel::Debug, "%.*s:%d - %.*s - %.*s %.*s\n", int(remote.size()), remote.data(), request.remote_port(), int(status.size()), status.data(), int(method.size()), method.data(), int(uri.size()), uri.data());
+		// Log the request/result
+		if (auto * cb = m_private->logger.log_callback(); cb)
+			cb->log_request(request);
 	}
 
-	m_private->log(LogLevel::Info, "Thread finished\n");
+	m_private->log(LogLevel::Info, "Thread finished");
 }
 
 

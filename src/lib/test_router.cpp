@@ -14,11 +14,39 @@ namespace
 using TestPair = std::pair<int,Request::Route>;
 using TestPairs = std::vector<TestPair>;
 
+class DummyLogger : public ILogCallback
+{
+public:
+	DummyLogger(std::string & d, std::string & i, std::string & e)
+	    : log_debug(d), log_info(i), log_error(e) {}
+
+	void log_message(LogLevel level, std::string_view const& message) override
+	{
+		switch (level)
+		{
+			case LogLevel::Debug:
+				log_debug.append(message);
+				break;
+			case LogLevel::Info:
+				log_info.append(message);
+				break;
+			case LogLevel::Error:
+				log_error.append(message);
+				break;
+		}
+	}
+
+private:
+	std::string & log_debug;
+	std::string & log_info;
+	std::string & log_error;
+};
+
 struct DummyRoutes
 {
 	Router::Callback operator[] (int index)
 	{
-		return [this,index](LogCallback const& logger, Request & request)
+		return [this,index](Logger const& logger, Request & request)
 		{
 			(void)logger;
 			calls.push_back({index, request.relative_route()});
@@ -27,23 +55,9 @@ struct DummyRoutes
 
 	TestPairs calls;
 
-	LogCallback logger()
+	std::unique_ptr<ILogCallback> logger()
 	{
-		return [this](LogLevel level, const char *msg)
-		{
-			switch (level)
-			{
-				case LogLevel::Debug:
-					log_debug.append(msg);
-					break;
-				case LogLevel::Info:
-					log_info.append(msg);
-					break;
-				case LogLevel::Error:
-					log_error.append(msg);
-					break;
-			}
-		};
+		return std::make_unique<DummyLogger>(log_debug, log_info, log_error);
 	}
 
 	std::string log_debug;
@@ -84,7 +98,7 @@ static std::ostream& operator<< (std::ostream& stream, TestPair const& pair)
 TEST_CASE("Router-Single router", "[router]")
 {
 	DummyRoutes dummy_routes;
-	LogCallback logger = dummy_routes.logger();
+	Logger logger(dummy_routes.logger());
 
 	Router router;
 	router.add_route(dummy_routes[1], "/");
@@ -371,7 +385,7 @@ TEST_CASE("Router-Single router", "[router]")
 TEST_CASE("Router-Multiple routers", "[router]")
 {
 	DummyRoutes dummy_routes;
-	LogCallback logger = dummy_routes.logger();
+	Logger logger(dummy_routes.logger());
 
 	auto router1 = std::make_shared<Router>();
 	router1->add_route(dummy_routes[1], "/");

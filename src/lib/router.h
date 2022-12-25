@@ -15,13 +15,13 @@ class RouterPrivate;
 class DLL_PUBLIC Router : public IRouter
 {
 public:
-	using Callback = std::function<void(LogCallback const&, Request&)>;
+	using Callback = std::function<void(Logger const&, Request&)>;
 
 public:
 	Router();
 	~Router();
 
-	IRouter::RouteResult handle_request(LogCallback const& logger, Request & request) override;
+	IRouter::RouteResult handle_request(Logger const& logger, Request & request) override;
 
 	void add_route(std::shared_ptr<IRouter> router, std::string_view const& route);
 	void add_route(Callback && callback, std::string_view const& route, RequestMethod method = RequestMethod::CatchAllHere);

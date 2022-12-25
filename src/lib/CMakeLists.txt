@@ -1,5 +1,9 @@
 set (SOURCES
+	console_log_callback.cpp
 	fast_cgi_data.cpp
+	i_log_callback.cpp
+	line_formatter.cpp
+	logger.cpp
 	request.cpp
 	router.cpp
 	server.cpp
@@ -9,15 +13,18 @@ set (SOURCES
 )
 
 set (PRIVATE_HEADERS
+	console_log_callback.h
 	fast_cgi_data.h
 	symbol_server.h
 )
 
 set (HEADERS
 	i_cgi_data.h
+	i_log_callback.h
 	i_router.h
 	fcgiserver.h
 	fcgiserver_defs.h
+	line_formatter.h
 	logger.h
 	request.h
 	request_method.h
