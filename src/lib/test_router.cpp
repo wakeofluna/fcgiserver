@@ -1,6 +1,7 @@
 #include "router.h"
 #include "request.h"
 #include "test_mock_cgi_data.h"
+#include "test_mock_logger.h"
 #include <iostream>
 #include <string>
 #include <utility>
@@ -13,34 +14,6 @@ namespace
 
 using TestPair = std::pair<int,Request::Route>;
 using TestPairs = std::vector<TestPair>;
-
-class DummyLogger : public ILogCallback
-{
-public:
-	DummyLogger(std::string & d, std::string & i, std::string & e)
-	    : log_debug(d), log_info(i), log_error(e) {}
-
-	void log_message(LogLevel level, std::string_view const& message) override
-	{
-		switch (level)
-		{
-			case LogLevel::Debug:
-				log_debug.append(message);
-				break;
-			case LogLevel::Info:
-				log_info.append(message);
-				break;
-			case LogLevel::Error:
-				log_error.append(message);
-				break;
-		}
-	}
-
-private:
-	std::string & log_debug;
-	std::string & log_info;
-	std::string & log_error;
-};
 
 struct DummyRoutes
 {
@@ -55,23 +28,10 @@ struct DummyRoutes
 
 	TestPairs calls;
 
-	std::unique_ptr<ILogCallback> logger()
-	{
-		return std::make_unique<DummyLogger>(log_debug, log_info, log_error);
-	}
-
-	std::string log_debug;
-	std::string log_info;
-	std::string log_error;
-
 	void clear()
 	{
 		calls.clear();
-		log_debug.clear();
-		log_info.clear();
-		log_error.clear();
 	}
-
 };
 
 TestPairs check(int index, std::initializer_list<std::string_view> items)
@@ -98,7 +58,7 @@ static std::ostream& operator<< (std::ostream& stream, TestPair const& pair)
 TEST_CASE("Router-Single router", "[router]")
 {
 	DummyRoutes dummy_routes;
-	Logger logger(dummy_routes.logger());
+	Logger logger = MockLogger::create();
 
 	Router router;
 	router.add_route(dummy_routes[1], "/");
@@ -385,7 +345,7 @@ TEST_CASE("Router-Single router", "[router]")
 TEST_CASE("Router-Multiple routers", "[router]")
 {
 	DummyRoutes dummy_routes;
-	Logger logger(dummy_routes.logger());
+	Logger logger = MockLogger::create();
 
 	auto router1 = std::make_shared<Router>();
 	router1->add_route(dummy_routes[1], "/");

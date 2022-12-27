@@ -18,5 +18,5 @@ void ILogCallback::now(std::tm *tm)
 {
 	std::chrono::system_clock::time_point timepoint = std::chrono::system_clock::now();
 	time_t now_time = std::chrono::duration_cast<std::chrono::seconds>(timepoint.time_since_epoch()).count();
-	gmtime_r(&now_time, tm);
+	localtime_r(&now_time, tm);
 }

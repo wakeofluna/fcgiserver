@@ -43,6 +43,10 @@ set (OTHER
 set (TEST_SOURCES
 	test_mock_cgi_data.h
 	test_mock_cgi_data.cpp
+	test_mock_logger.h
+	test_mock_logger.cpp
+	test_line_formatter.cpp
+	test_logger.cpp
 	test_request.cpp
 	test_router.cpp
 	test_symbol.cpp

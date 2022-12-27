@@ -45,7 +45,11 @@ LineFormatter & LineFormatter::printf(char const* fmt, ...)
 LineFormatter & LineFormatter::vprintf(char const* fmt, std::va_list vl)
 {
 	char tmp[128];
-	auto retval = std::vsnprintf(tmp, sizeof(tmp), fmt, vl);
+
+	std::va_list vl_copy;
+	va_copy(vl_copy, vl);
+	auto retval = std::vsnprintf(tmp, sizeof(tmp), fmt, vl_copy);
+	va_end(vl_copy);
 
 	if (retval < 0)
 	{
@@ -63,6 +67,7 @@ LineFormatter & LineFormatter::vprintf(char const* fmt, std::va_list vl)
 		auto start_offset = m_buffer.size();
 		m_buffer.append(size_t(retval) + 1, char(0));
 		std::vsnprintf(m_buffer.data() + start_offset, retval + 1, fmt, vl);
+		m_buffer.pop_back();
 	}
 	return *this;
 }
