@@ -25,6 +25,8 @@ public:
 	inline std::string & buffer() { return m_buffer; }
 	inline std::string const& buffer() const { return m_buffer; }
 
+	inline operator std::string_view() const { return m_buffer; }
+
 	void clear();
 	bool empty() const;
 

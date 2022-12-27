@@ -240,48 +240,37 @@ Request::~Request()
 
 int Request::read(char * buffer, size_t bufsize)
 {
-	if (bufsize == 0)
+	if (!buffer || bufsize == 0)
 		return 0;
 
 	return m_private->cgi_data.read(reinterpret_cast<uint8_t*>(buffer), bufsize);
 }
 
-int Request::write(const char * buffer, size_t bufsize)
+int Request::write(std::string_view const& buffer)
 {
 	send_headers();
-
-	if (bufsize == size_t(-1))
-		bufsize = std::strlen(buffer);
-
-	if (bufsize == 0)
-		return 0;
-
-	return m_private->cgi_data.write(reinterpret_cast<const uint8_t*>(buffer), bufsize);
+	return m_private->cgi_data.write(reinterpret_cast<const uint8_t*>(buffer.data()), buffer.size());
 }
 
-int Request::write(const char32_t * buffer, size_t bufsize)
+int Request::write(std::u32string_view const& buffer)
 {
 	send_headers();
-
-	return ::write_utf32(m_private->cgi_data, &ICgiData::write, buffer, bufsize);
+	return ::write_utf32(m_private->cgi_data, &ICgiData::write, buffer.data(), buffer.size());
 }
 
-int Request::write_html(const char * buffer, size_t bufsize)
+int Request::write_html(std::string_view const& buffer)
 {
 	send_headers();
-
-	const bool infinite = (bufsize == size_t(-1));
 
 	convert_state mbstate;
 	uint8_t mb_buf[16];
 	int written = 0;
 
-	for (; bufsize > 0; ++buffer, --bufsize)
+	char const* bufdata = buffer.data();
+	size_t bufsize = buffer.size();
+	for (; bufsize > 0; ++bufdata, --bufsize)
 	{
-		if (infinite && *buffer == 0)
-			break;
-
-		char32_t glyph = utf8_to_32(*buffer, mbstate);
+		char32_t glyph = utf8_to_32(*bufdata, mbstate);
 		if (!mbstate)
 			return -1;
 
@@ -309,20 +298,18 @@ int Request::write_html(const char * buffer, size_t bufsize)
 	return written;
 }
 
-int Request::write_html(const char32_t * buffer, size_t bufsize)
+int Request::write_html(std::u32string_view const& buffer)
 {
 	send_headers();
-
-	const bool infinite = (bufsize == size_t(-1));
 
 	uint8_t mb_buf[16];
 	int written = 0;
 
-	for (; bufsize > 0; ++buffer, --bufsize)
+	char32_t const* bufdata = buffer.data();
+	size_t bufsize = buffer.size();
+	for (; bufsize > 0; ++bufdata, --bufsize)
 	{
-		char32_t glyph = *buffer;
-		if (infinite && glyph == 0)
-			break;
+		char32_t glyph = *bufdata;
 
 		int result;
 		if (glyph < 0x80)
@@ -345,20 +332,14 @@ int Request::write_html(const char32_t * buffer, size_t bufsize)
 	return written;
 }
 
-int Request::error(const char * buffer, size_t bufsize)
+int Request::error(std::string_view const& buffer)
 {
-	if (bufsize == size_t(-1))
-		bufsize = std::strlen(buffer);
-
-	if (bufsize == 0)
-		return 0;
-
-	return m_private->cgi_data.error(reinterpret_cast<const uint8_t*>(buffer), bufsize);
+	return m_private->cgi_data.error(reinterpret_cast<const uint8_t*>(buffer.data()), buffer.size());
 }
 
-int Request::error(const char32_t * buffer, size_t bufsize)
+int Request::error(std::u32string_view const& buffer)
 {
-	return ::write_utf32(m_private->cgi_data, &ICgiData::error, buffer, bufsize);
+	return ::write_utf32(m_private->cgi_data, &ICgiData::error, buffer.data(), buffer.size());
 }
 
 int Request::flush()

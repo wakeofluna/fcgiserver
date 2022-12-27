@@ -40,18 +40,13 @@ public:
 	ICgiData const& cgi_data() const;
 
 	int read(char * buffer, size_t bufsize);
-	int write(const char * buffer, size_t bufsize = size_t(-1));
-	int write(const char32_t * buffer, size_t bufsize = size_t(-1));
-	int write_html(const char * buffer, size_t bufsize = size_t(-1));
-	int write_html(const char32_t * buffer, size_t bufsize = size_t(-1));
-	int error(const char * buffer, size_t bufsize = size_t(-1));
-	int error(const char32_t * buffer, size_t bufsize = size_t(-1));
-	inline int write(std::string_view const& buf, size_t max_len = size_t(-1)) { return write(buf.data(), std::min(buf.size(), max_len)); }
-	inline int write(std::u32string_view const& buf, size_t max_len = size_t(-1)) { return write(buf.data(), std::min(buf.size(), max_len)); }
-	inline int write_html(std::string_view const& buf, size_t max_len = size_t(-1)) { return write_html(buf.data(), std::min(buf.size(), max_len)); }
-	inline int write_html(std::u32string_view const& buf, size_t max_len = size_t(-1)) { return write_html(buf.data(), std::min(buf.size(), max_len)); }
-	inline int error(std::string_view const& buf, size_t max_len = size_t(-1)) { return error(buf.data(), std::min(buf.size(), max_len)); }
-	inline int error(std::u32string_view const& buf, size_t max_len = size_t(-1)) { return error(buf.data(), std::min(buf.size(), max_len)); }
+
+	int write(std::string_view const& buf);
+	int write(std::u32string_view const& buf);
+	int write_html(std::string_view const& buf);
+	int write_html(std::u32string_view const& buf);
+	int error(std::string_view const& buf);
+	int error(std::u32string_view const& buf);
 	int flush();
 	int flush_error();
 
