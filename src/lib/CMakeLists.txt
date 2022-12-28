@@ -1,6 +1,7 @@
 set (SOURCES
 	console_log_callback.cpp
 	fast_cgi_data.cpp
+	generic_formatter.cpp
 	i_log_callback.cpp
 	line_formatter.cpp
 	logger.cpp
@@ -10,6 +11,7 @@ set (SOURCES
 	symbol.cpp
 	symbol_server.cpp
 	symbols.cpp
+	utils.cpp
 )
 
 set (PRIVATE_HEADERS
@@ -24,6 +26,7 @@ set (HEADERS
 	i_router.h
 	fcgiserver.h
 	fcgiserver_defs.h
+	generic_formatter.h
 	line_formatter.h
 	logger.h
 	request.h
@@ -32,6 +35,7 @@ set (HEADERS
 	server.h
 	symbol.h
 	symbols.h
+	utils.h
 )
 
 set (OTHER

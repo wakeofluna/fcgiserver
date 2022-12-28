@@ -81,12 +81,12 @@ LogStream Logger::operator<< (LogLevel level) const
 }
 
 LogStream::LogStream(Logger const& log, LogLevel lvl)
-    : logger(log)
-    , level(lvl)
+    : m_logger(log)
+    , m_level(lvl)
 {
 }
 
 LogStream::~LogStream()
 {
-	logger.log(level, m_buffer);
+	m_logger.log(m_level, m_buffer);
 }

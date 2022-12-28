@@ -6,12 +6,12 @@
 #include <string>
 #include <string_view>
 #include "fcgiserver_defs.h"
-#include "symbol.h"
+#include "generic_formatter.h"
 
 namespace fcgiserver
 {
 
-class DLL_PUBLIC LineFormatter
+class DLL_PUBLIC LineFormatter : public GenericFormatter
 {
 public:
 	LineFormatter();
@@ -24,47 +24,14 @@ public:
 
 	inline std::string & buffer() { return m_buffer; }
 	inline std::string const& buffer() const { return m_buffer; }
-
 	inline operator std::string_view() const { return m_buffer; }
 
 	void clear();
 	bool empty() const;
 
-	template <typename T>
-	inline LineFormatter & append(T arg)
-	{
-		operator<<(std::forward<T>(arg));
-		return *this;
-	}
-
-	template <typename T, typename ...ARGS>
-	inline LineFormatter & append(T arg, ARGS... args)
-	{
-		operator<<(std::forward<T>(arg));
-		return append(std::forward<ARGS>(args)...);
-	}
-
-	LineFormatter & printf(char const* fmt, ...);
-	LineFormatter & vprintf(char const* fmt, std::va_list vl);
-
-	LineFormatter & operator<< (bool b);
-	LineFormatter & operator<< (char c);
-	LineFormatter & operator<< (uint8_t i);
-	LineFormatter & operator<< (int8_t i);
-	LineFormatter & operator<< (uint16_t i);
-	LineFormatter & operator<< (int16_t i);
-	LineFormatter & operator<< (uint32_t i);
-	LineFormatter & operator<< (int32_t i);
-	LineFormatter & operator<< (uint64_t i);
-	LineFormatter & operator<< (int64_t i);
-	LineFormatter & operator<< (float f);
-	LineFormatter & operator<< (double d);
-	LineFormatter & operator<< (const char * s);
-	LineFormatter & operator<< (std::string_view const& s);
-	LineFormatter & operator<< (std::string const& s);
-	LineFormatter & operator<< (Symbol s);
-
 protected:
+	void real_append(const std::string_view & s) override;
+
 	std::string m_buffer;
 };
 

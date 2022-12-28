@@ -45,8 +45,8 @@ public:
 	~LogStream();
 
 private:
-	Logger const& logger;
-	LogLevel level;
+	Logger const& m_logger;
+	LogLevel m_level;
 };
 
 inline LogStream Logger::stream(LogLevel level) const { return operator<< (level); }

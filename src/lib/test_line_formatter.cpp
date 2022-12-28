@@ -4,6 +4,7 @@
 #include <climits>
 
 using namespace fcgiserver;
+using namespace std::literals::string_view_literals;
 
 TEST_CASE("LineFormatter", "[logger]")
 {
@@ -86,5 +87,81 @@ TEST_CASE("LineFormatter", "[logger]")
 
 		REQUIRE( lf.buffer().capacity() >= capacity + 10 );
 		REQUIRE( lf.buffer().c_str() != data );
+	}
+
+	/* SECTION("Multibyte glyphs") */ {
+		std::string_view line = "<test> \xe2\x84\xa2 & you </true>"sv;
+		std::u32string_view line32 = U"<test> ™ & you </true>"sv;
+		std::string_view line_invalid = "<test> \xe2\xf4\xa2 & you </true>"sv;
+
+		SECTION("Multibyte glyphs over Verbatim")
+		{
+			lf.set_generic_format(GenericFormat::Verbatim);
+
+			lf << line;
+			REQUIRE( lf.buffer() == line );
+			lf.clear();
+
+			lf << line32;
+			REQUIRE( lf.buffer().size() == line32.size() * 4 );
+			lf.clear();
+
+			lf << line_invalid;
+			REQUIRE( lf.buffer() == line_invalid );
+			lf.clear();
+		}
+
+		SECTION("Multibyte glyphs over UTF8")
+		{
+			lf.set_generic_format(GenericFormat::UTF8);
+
+			lf << line;
+			REQUIRE( lf.buffer() == line );
+			lf.clear();
+
+			lf << line32;
+			REQUIRE( lf.buffer() == line );
+			lf.clear();
+
+			lf << line_invalid;
+			REQUIRE( lf.buffer() == "<test> \xef\xbf\xbd & you </true>"sv );
+			lf.clear();
+		}
+
+		SECTION("Multibyte glyphs over HTML")
+		{
+			lf.set_generic_format(GenericFormat::HTML);
+			std::string_view line_html = "<test> &#x2122; &amp; you </true>"sv;
+
+			lf << line;
+			REQUIRE( lf.buffer() == line_html );
+			lf.clear();
+
+			lf << line32;
+			REQUIRE( lf.buffer() == line_html );
+			lf.clear();
+
+			lf << line_invalid;
+			REQUIRE( lf.buffer() == "<test> &#xfffd; &amp; you </true>"sv );
+			lf.clear();
+		}
+
+		SECTION("Multibyte glyphs over HTMLContent")
+		{
+			lf.set_generic_format(GenericFormat::HTMLContent);
+			std::string_view line_full_html = "&lt;test&rt; &#x2122; &amp; you &lt;/true&rt;"sv;
+
+			lf << line;
+			REQUIRE( lf.buffer() == line_full_html );
+			lf.clear();
+
+			lf << line32;
+			REQUIRE( lf.buffer() == line_full_html );
+			lf.clear();
+
+			lf << line_invalid;
+			REQUIRE( lf.buffer() == "&lt;test&rt; &#xfffd; &amp; you &lt;/true&rt;"sv);
+			lf.clear();
+		}
 	}
 }

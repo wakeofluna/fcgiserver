@@ -1,5 +1,6 @@
 #include "i_cgi_data.h"
 #include "request.h"
+#include "utils.h"
 #include <cstring>
 #include <charconv>
 
@@ -35,127 +36,6 @@ RequestMethod resolve_method(std::string_view const& method)
 	return RequestMethod::Other;
 }
 
-std::pair<bool,uint8_t> unhex(char const* ch)
-{
-	uint8_t v = 0;
-
-	if (ch[0] >= '0' && ch[0] <= '9')
-		v += (ch[0] - '0');
-	else if (ch[0] >= 'a' && ch[0] <= 'f')
-		v += (ch[0] - 'a' + 10);
-	else if (ch[0] >= 'A' && ch[0] <= 'F')
-		v += (ch[0] - 'A' + 10);
-	else
-		return {false, 0U};
-
-	v <<= 4;
-
-	if (ch[1] >= '0' && ch[1] <= '9')
-		v += (ch[1] - '0');
-	else if (ch[1] >= 'a' && ch[1] <= 'f')
-		v += (ch[1] - 'a' + 10);
-	else if (ch[1] >= 'A' && ch[1] <= 'F')
-		v += (ch[1] - 'A' + 10);
-	else
-		return {false, 0U};
-
-	return {true, v};
-}
-
-struct convert_state
-{
-	uint32_t glyph = 0;
-	uint8_t remaining = 0;
-	bool valid = false;
-	inline operator bool() const { return valid; }
-};
-
-char32_t utf8_to_32(uint8_t next, convert_state & state)
-{
-	if (state.remaining > 0)
-	{
-		if (state.valid)
-		{
-			if ((next & 0xc0) == 0x80)
-			{
-				state.glyph <<= 6;
-				state.glyph |= (next & 0x3f);
-			}
-			else
-			{
-				state.valid = false;
-			}
-		}
-		--state.remaining;
-	}
-	else
-	{
-		if ((next & 0x80) == 0x00)
-		{
-			state.valid = true;
-			state.glyph = next;
-		}
-		else if ((next & 0xe0) == 0xc0)
-		{
-			state.valid = true;
-			state.remaining = 1;
-			state.glyph = (next & 0x1f);
-		}
-		else if ((next & 0xf0) == 0xe0)
-		{
-			state.valid = true;
-			state.remaining = 2;
-			state.glyph = (next & 0x0f);
-		}
-		else if ((next & 0xf8) == 0xf0)
-		{
-			state.valid = true;
-			state.remaining = 3;
-			state.glyph = (next & 0x07);
-		}
-		else
-		{
-			state.valid = false;
-		}
-	}
-
-	return (state.valid && state.remaining == 0) ? state.glyph : 0;
-}
-
-size_t utf32_to_8(char32_t glyph, uint8_t * buf)
-{
-	if (glyph < 0x80)
-	{
-		buf[0] = glyph;
-		return 1;
-	}
-	else if (glyph < 0x800)
-	{
-		buf[0] = 0xc0 + (glyph >> 6);
-		buf[1] = 0x80 + (glyph & 0x3f);
-		return 2;
-	}
-	else if (glyph < 0x10000)
-	{
-		buf[0] = 0xe0 + (glyph >> 12);
-		buf[1] = 0x80 + ((glyph >> 6) & 0x3f);
-		buf[2] = 0x80 + (glyph & 0x3f);
-		return 3;
-	}
-	else if (glyph < 0x110000)
-	{
-		buf[0] = 0xf0 + (glyph >> 18);
-		buf[1] = 0x80 + ((glyph >> 12) & 0x3f);
-		buf[2] = 0x80 + ((glyph >> 6) & 0x3f);
-		buf[3] = 0x80 + (glyph & 0x3f);
-		return 4;
-	}
-	else
-	{
-		return 0;
-	}
-}
-
 template <typename T>
 int write_utf32(T & writer, int (T::*out)(uint8_t const*, size_t), char32_t const* buffer, size_t bufsize)
 {
@@ -169,7 +49,7 @@ int write_utf32(T & writer, int (T::*out)(uint8_t const*, size_t), char32_t cons
 		if (infinite && *buffer == 0)
 			break;
 
-		size_t mb_size = utf32_to_8(*buffer, mb_buf);
+		size_t mb_size = utils::utf32_to_8(*buffer, mb_buf);
 		if (mb_size == 0)
 			return -1;
 
@@ -204,6 +84,7 @@ public:
 	Request::QueryParams query;
 	Request::Route route;
 	Request::Route relative_route;
+	ContentEncoding encoding;
 	bool headers_sent;
 	bool query_parsed;
 	bool route_parsed;
@@ -262,7 +143,7 @@ int Request::write_html(std::string_view const& buffer)
 {
 	send_headers();
 
-	convert_state mbstate;
+	utils::convert_state mbstate;
 	uint8_t mb_buf[16];
 	int written = 0;
 
@@ -332,6 +213,11 @@ int Request::write_html(std::u32string_view const& buffer)
 	return written;
 }
 
+int Request::flush()
+{
+	return m_private->cgi_data.flush_write();
+}
+
 int Request::error(std::string_view const& buffer)
 {
 	return m_private->cgi_data.error(reinterpret_cast<const uint8_t*>(buffer.data()), buffer.size());
@@ -340,11 +226,6 @@ int Request::error(std::string_view const& buffer)
 int Request::error(std::u32string_view const& buffer)
 {
 	return ::write_utf32(m_private->cgi_data, &ICgiData::error, buffer.data(), buffer.size());
-}
-
-int Request::flush()
-{
-	return m_private->cgi_data.flush_write();
 }
 
 int Request::flush_error()
@@ -477,7 +358,7 @@ std::pair<bool,std::u32string> Request::query_decode(const std::string_view & va
 	std::u32string result;
 	result.reserve(value.size());
 
-	convert_state mbstate;
+	utils::convert_state mbstate;
 
 	for (size_t idx = 0; idx < value.size(); ++idx)
 	{
@@ -486,15 +367,15 @@ std::pair<bool,std::u32string> Request::query_decode(const std::string_view & va
 		char c = value[idx];
 		if (c == '%' && idx + 2 < value.size())
 		{
-			auto chr = unhex(value.data() + idx + 1);
+			auto chr = utils::unhex(value.data() + idx + 1);
 			if (chr.first)
 			{
-				glyph = utf8_to_32(chr.second, mbstate);
+				glyph = utils::utf8_to_32(chr.second, mbstate);
 				idx += 2;
 			}
 			else
 			{
-				glyph = utf8_to_32(c, mbstate);
+				glyph = utils::utf8_to_32(c, mbstate);
 			}
 		}
 		else
@@ -517,11 +398,11 @@ std::pair<bool,std::u32string> Request::utf8_decode(std::string_view const& valu
 	std::u32string result;
 	result.reserve(value.size());
 
-	convert_state mbstate;
+	utils::convert_state mbstate;
 
 	for (size_t idx = 0; idx < value.size(); ++idx)
 	{
-		char32_t glyph = utf8_to_32(value[idx], mbstate);
+		char32_t glyph = utils::utf8_to_32(value[idx], mbstate);
 
 		if (!mbstate)
 			return {false,std::u32string()};
@@ -583,6 +464,21 @@ void Request::set_http_status(uint16_t code)
 void Request::set_content_type(std::string content_type)
 {
 	m_private->headers.emplace(symbols::ContentType, std::move(content_type));
+
+	// Some very crude autodetection
+	std::string_view ct = content_type;
+	if (ct == "text/html"sv)
+		m_private->encoding = ContentEncoding::HTML;
+	else if (ct.substr(0, 5) == "text/"sv)
+		m_private->encoding = ContentEncoding::UTF8;
+	else
+		m_private->encoding = ContentEncoding::Verbatim;
+}
+
+void Request::set_content_type(std::string content_type, ContentEncoding encoding)
+{
+	m_private->headers.emplace(symbols::ContentType, std::move(content_type));
+	m_private->encoding = encoding;
 }
 
 void Request::set_header(Symbol key, std::string value)
@@ -593,6 +489,16 @@ void Request::set_header(Symbol key, std::string value)
 void Request::set_header(Symbol key, int value)
 {
 	m_private->headers.emplace(key, std::to_string(value));
+}
+
+ContentEncoding Request::encoding() const
+{
+	return m_private->encoding;
+}
+
+void Request::set_encoding(ContentEncoding encoding)
+{
+	m_private->encoding = encoding;
 }
 
 void Request::send_headers()

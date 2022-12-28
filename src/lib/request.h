@@ -22,6 +22,13 @@ namespace fcgiserver
 class ICgiData;
 class RequestPrivate;
 
+enum class ContentEncoding
+{
+	Verbatim,
+	UTF8,
+	HTML,
+};
+
 class DLL_PUBLIC Request
 {
 public:
@@ -39,15 +46,19 @@ public:
 	ICgiData      & cgi_data();
 	ICgiData const& cgi_data() const;
 
+	// Input from the FastCGI input channel : always verbatim
 	int read(char * buffer, size_t bufsize);
 
+	// Output over the FastCGI output channel : uses ContentEncoding
 	int write(std::string_view const& buf);
 	int write(std::u32string_view const& buf);
 	int write_html(std::string_view const& buf);
 	int write_html(std::u32string_view const& buf);
+	int flush();
+
+	// Output over the FastCGI error channel : always UTF8 encoded
 	int error(std::string_view const& buf);
 	int error(std::u32string_view const& buf);
-	int flush();
 	int flush_error();
 
 	EnvMap const& env_map() const;
@@ -84,8 +95,12 @@ public:
 
 	void set_http_status(uint16_t code);
 	void set_content_type(std::string content_type);
+	void set_content_type(std::string content_type, ContentEncoding encoding);
 	void set_header(Symbol key, std::string value);
 	void set_header(Symbol key, int value);
+
+	ContentEncoding encoding() const;
+	void set_encoding(ContentEncoding encoding);
 
 	void send_headers();
 
