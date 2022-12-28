@@ -7,14 +7,14 @@ using namespace fcgiserver;
 using namespace std::literals::string_view_literals;
 
 
-LineFormatter::LineFormatter()
-    : GenericFormatter(GenericFormat::UTF8)
+LineFormatter::LineFormatter(GenericFormat format)
+    : GenericFormatter(format)
 {
 	m_buffer.reserve(128);
 }
 
-LineFormatter::LineFormatter(std::string && buffer)
-    : GenericFormatter(GenericFormat::UTF8)
+LineFormatter::LineFormatter(std::string && buffer, GenericFormat format)
+    : GenericFormatter(format)
     , m_buffer(std::move(buffer))
 {
 	if (m_buffer.capacity() == 0)

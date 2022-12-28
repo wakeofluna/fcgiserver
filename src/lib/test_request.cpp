@@ -308,39 +308,43 @@ TEST_CASE("Request-Query", "[request]")
 
 	SECTION("Percent decoding")
 	{
-		std::pair<bool,std::u32string> result;
+		std::pair<bool,std::string> result;
 
 		result = Request::query_decode("test%20environment");
 		REQUIRE( result.first );
-		REQUIRE( result.second == U"test environment" );
+		REQUIRE( result.second == "test environment" );
 
 		result = Request::query_decode("percent%25hack");
 		REQUIRE( result.first );
-		REQUIRE( result.second == U"percent%hack" );
+		REQUIRE( result.second == "percent%hack" );
 
 		result = Request::query_decode("invalid%a%Percent");
 		REQUIRE( result.first );
-		REQUIRE( result.second == U"invalid%a%Percent");
+		REQUIRE( result.second == "invalid%a%Percent");
 
 		result = Request::query_decode("%48%49%4A%4B%4c%4d%4E%4f%50%51");
 		REQUIRE( result.first );
-		REQUIRE( result.second == U"HIJKLMNOPQ" );
+		REQUIRE( result.second == "HIJKLMNOPQ" );
 
 		result = Request::query_decode("trailing%20percent%");
 		REQUIRE( result.first );
-		REQUIRE( result.second == U"trailing percent%");
+		REQUIRE( result.second == "trailing percent%");
 
 		result = Request::query_decode("trailing%20percent%2");
 		REQUIRE( result.first );
-		REQUIRE( result.second == U"trailing percent%2");
+		REQUIRE( result.second == "trailing percent%2");
 
 		result = Request::query_decode("trailing%20percent%20");
 		REQUIRE( result.first );
-		REQUIRE( result.second == U"trailing percent ");
+		REQUIRE( result.second == "trailing percent ");
 
 		result = Request::query_decode("multibyte%20is%20evil%E2%84%a2right%40");
 		REQUIRE( result.first );
-		REQUIRE( result.second == U"multibyte is evil™right@");
+		REQUIRE( result.second == "multibyte is evil\xe2\x84\xa2right@");
+
+		result = Request::query_decode("multibyte%20invalid%20evil%E2%F4%A2right%40");
+		REQUIRE( result.first );
+		REQUIRE( result.second == "multibyte invalid evil\xe2\xf4\xa2right@");
 	}
 }
 
@@ -496,50 +500,50 @@ TEST_CASE("Request-UTF8", "[request]")
 
 	SECTION("Write UTF8 as HTML")
 	{
-		int len = request.write_html(line);
-		REQUIRE( len == 18 );
+		request.set_encoding(ContentEncoding::HTML);
+		request.write_stream() << line;
 		REQUIRE( cgidata.m_writebuf == "test &#x2122; true" );
 	}
 
 	SECTION("Write invalid UTF8 as HTML")
 	{
-		int len = request.write_html(line_invalid);
-		REQUIRE( len == -1 );
-		REQUIRE( cgidata.m_writebuf == "test " );
+		request.set_encoding(ContentEncoding::HTML);
+		request.write_stream() << line_invalid;
+		REQUIRE( cgidata.m_writebuf == "test &#xfffd; true" );
 	}
 
 	SECTION("Write UTF32 as HTML")
 	{
-		int len = request.write_html(line32);
-		REQUIRE( len == 18 );
+		request.set_encoding(ContentEncoding::HTML);
+		request.write_stream() << line32;
 		REQUIRE( cgidata.m_writebuf == "test &#x2122; true" );
 	}
 
 	SECTION("Write UTF8 as UTF8")
 	{
-		int len = request.write(line);
-		REQUIRE( len == 13 );
+		request.set_encoding(ContentEncoding::UTF8);
+		request.write_stream() << line;
 		REQUIRE( cgidata.m_writebuf == line );
 	}
 
 	SECTION("Write UTF32 as UTF8")
 	{
-		int len = request.write(line32);
-		REQUIRE( len == 13 );
+		request.set_encoding(ContentEncoding::UTF8);
+		request.write_stream() << line32;
 		REQUIRE( cgidata.m_writebuf == line );
 	}
 
 	SECTION("Error UTF8 as UTF8")
 	{
-		int len = request.error(line);
-		REQUIRE( len == 13 );
+		request.set_encoding(ContentEncoding::HTML);
+		request.error_stream() << line;
 		REQUIRE( cgidata.m_errorbuf == line );
 	}
 
 	SECTION("Error UTF32 as UTF8")
 	{
-		int len = request.error(line32);
-		REQUIRE( len == 13 );
+		request.set_encoding(ContentEncoding::HTML);
+		request.error_stream() << line32;
 		REQUIRE( cgidata.m_errorbuf == line );
 	}
 }

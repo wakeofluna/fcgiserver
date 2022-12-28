@@ -14,8 +14,8 @@ namespace fcgiserver
 class DLL_PUBLIC LineFormatter : public GenericFormatter
 {
 public:
-	LineFormatter();
-	LineFormatter(std::string && buffer);
+	LineFormatter(GenericFormat format = GenericFormat::UTF8);
+	LineFormatter(std::string && buffer, GenericFormat format = GenericFormat::UTF8);
 	LineFormatter(LineFormatter const& other) = delete;
 	LineFormatter(LineFormatter && other) = delete;
 	LineFormatter & operator= (LineFormatter const& other) = delete;

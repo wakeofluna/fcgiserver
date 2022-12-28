@@ -1,6 +1,7 @@
 #include "i_cgi_data.h"
 #include "request.h"
 #include "utils.h"
+#include <cassert>
 #include <cstring>
 #include <charconv>
 
@@ -36,34 +37,19 @@ RequestMethod resolve_method(std::string_view const& method)
 	return RequestMethod::Other;
 }
 
-template <typename T>
-int write_utf32(T & writer, int (T::*out)(uint8_t const*, size_t), char32_t const* buffer, size_t bufsize)
+GenericFormat to_format(ContentEncoding encoding)
 {
-	const bool infinite = (bufsize == size_t(-1));
-
-	uint8_t mb_buf[4];
-	int written = 0;
-
-	for (; bufsize > 0; ++buffer, --bufsize)
+	switch (encoding)
 	{
-		if (infinite && *buffer == 0)
-			break;
-
-		size_t mb_size = utils::utf32_to_8(*buffer, mb_buf);
-		if (mb_size == 0)
-			return -1;
-
-		int result = (writer.*out)(mb_buf, mb_size);
-		if (result < 0)
-			return result;
-
-		if (size_t(result) != mb_size)
-			return -1;
-
-		written += result;
+		case ContentEncoding::Verbatim:
+			return GenericFormat::Verbatim;
+		case ContentEncoding::UTF8:
+			return GenericFormat::UTF8;
+		case ContentEncoding::HTML:
+			return GenericFormat::HTML;
 	}
-
-	return written;
+	assert(false && "invalid content encoding");
+	return GenericFormat::Verbatim;
 }
 
 }
@@ -127,105 +113,30 @@ int Request::read(char * buffer, size_t bufsize)
 	return m_private->cgi_data.read(reinterpret_cast<uint8_t*>(buffer), bufsize);
 }
 
+RequestStream Request::write_stream()
+{
+	return RequestStream(*this, &Request::write, to_format(m_private->encoding));
+}
+
 int Request::write(std::string_view const& buffer)
 {
 	send_headers();
 	return m_private->cgi_data.write(reinterpret_cast<const uint8_t*>(buffer.data()), buffer.size());
 }
 
-int Request::write(std::u32string_view const& buffer)
-{
-	send_headers();
-	return ::write_utf32(m_private->cgi_data, &ICgiData::write, buffer.data(), buffer.size());
-}
-
-int Request::write_html(std::string_view const& buffer)
-{
-	send_headers();
-
-	utils::convert_state mbstate;
-	uint8_t mb_buf[16];
-	int written = 0;
-
-	char const* bufdata = buffer.data();
-	size_t bufsize = buffer.size();
-	for (; bufsize > 0; ++bufdata, --bufsize)
-	{
-		char32_t glyph = utf8_to_32(*bufdata, mbstate);
-		if (!mbstate)
-			return -1;
-
-		if (glyph == 0)
-			continue;
-
-		int result;
-		if (glyph < 0x80)
-		{
-			uint8_t chr = glyph;
-			result = m_private->cgi_data.write(&chr, 1);
-		}
-		else
-		{
-			int len = std::snprintf((char*)mb_buf, sizeof(mb_buf), "&#x%x;", glyph);
-			result = m_private->cgi_data.write(mb_buf, len);
-		}
-
-		if (result < 0)
-			return result;
-
-		written += result;
-	}
-
-	return written;
-}
-
-int Request::write_html(std::u32string_view const& buffer)
-{
-	send_headers();
-
-	uint8_t mb_buf[16];
-	int written = 0;
-
-	char32_t const* bufdata = buffer.data();
-	size_t bufsize = buffer.size();
-	for (; bufsize > 0; ++bufdata, --bufsize)
-	{
-		char32_t glyph = *bufdata;
-
-		int result;
-		if (glyph < 0x80)
-		{
-			uint8_t chr = glyph;
-			result = m_private->cgi_data.write(&chr, 1);
-		}
-		else
-		{
-			int len = std::snprintf((char*)mb_buf, sizeof(mb_buf), "&#x%x;", glyph);
-			result = m_private->cgi_data.write(mb_buf, len);
-		}
-
-		if (result < 0)
-			return result;
-
-		written += result;
-	}
-
-	return written;
-}
-
-int Request::flush()
+int Request::flush_write()
 {
 	return m_private->cgi_data.flush_write();
+}
+
+RequestStream Request::error_stream()
+{
+	return RequestStream(*this, &Request::error, GenericFormat::UTF8);
 }
 
 int Request::error(std::string_view const& buffer)
 {
 	return m_private->cgi_data.error(reinterpret_cast<const uint8_t*>(buffer.data()), buffer.size());
-}
-
-int Request::error(std::u32string_view const& buffer)
-{
-	return ::write_utf32(m_private->cgi_data, &ICgiData::error, buffer.data(), buffer.size());
 }
 
 int Request::flush_error()
@@ -353,41 +264,31 @@ std::pair<bool,std::string_view> Request::query(const std::string_view & key) co
 	return std::make_pair(false, std::string_view());
 }
 
-std::pair<bool,std::u32string> Request::query_decode(const std::string_view & value)
+std::pair<bool,std::string> Request::query_decode(const std::string_view & value)
 {
-	std::u32string result;
+	std::string result;
 	result.reserve(value.size());
-
-	utils::convert_state mbstate;
 
 	for (size_t idx = 0; idx < value.size(); ++idx)
 	{
-		char32_t glyph;
-
 		char c = value[idx];
 		if (c == '%' && idx + 2 < value.size())
 		{
 			auto chr = utils::unhex(value.data() + idx + 1);
 			if (chr.first)
 			{
-				glyph = utils::utf8_to_32(chr.second, mbstate);
+				result.push_back(chr.second);
 				idx += 2;
 			}
 			else
 			{
-				glyph = utils::utf8_to_32(c, mbstate);
+				result.push_back(c);
 			}
 		}
 		else
 		{
-			glyph = utf8_to_32(c, mbstate);
+			result.push_back(c);
 		}
-
-		if (!mbstate)
-			return {false,std::u32string()};
-
-		if (glyph != 0)
-			result.push_back(glyph);
 	}
 
 	return {true,std::move(result)};
@@ -416,26 +317,19 @@ std::pair<bool,std::u32string> Request::utf8_decode(std::string_view const& valu
 
 std::pair<bool,std::string> Request::utf8_encode(std::u32string_view const& value)
 {
-	struct Writer
-	{
-		inline Writer(std::string & _target) : target(_target) {}
-		std::string & target;
-
-		int write(uint8_t const* buffer, size_t bufsize)
-		{
-			target.append((char const*)buffer, bufsize);
-			return bufsize;
-		}
-	};
-
 	std::string result;
 	result.reserve(value.size() + 32);
 
-	Writer writer(result);
-	int written = write_utf32(writer, &Writer::write, value.data(), value.size());
+	for (char32_t glyph : value)
+	{
+		uint8_t tmp[4];
+		size_t len = utils::utf32_to_8(glyph, tmp);
 
-	if (written < 0)
-		return {false, std::string()};
+		if (len == 0)
+			return {false,std::string()};
+
+		result.append(reinterpret_cast<char const*>(tmp), len);
+	}
 
 	return {true, std::move(result)};
 }
@@ -463,8 +357,6 @@ void Request::set_http_status(uint16_t code)
 
 void Request::set_content_type(std::string content_type)
 {
-	m_private->headers.emplace(symbols::ContentType, std::move(content_type));
-
 	// Some very crude autodetection
 	std::string_view ct = content_type;
 	if (ct == "text/html"sv)
@@ -473,6 +365,8 @@ void Request::set_content_type(std::string content_type)
 		m_private->encoding = ContentEncoding::UTF8;
 	else
 		m_private->encoding = ContentEncoding::Verbatim;
+
+	m_private->headers.emplace(symbols::ContentType, std::move(content_type));
 }
 
 void Request::set_content_type(std::string content_type, ContentEncoding encoding)
@@ -520,4 +414,33 @@ void Request::send_headers()
 
 	m_private->cgi_data.write(reinterpret_cast<const uint8_t*>("\r\n"), 2);
 	m_private->headers_sent = true;
+}
+
+
+RequestStream::RequestStream(Request & request, int (Request::*channel)(const std::string_view &), GenericFormat format)
+    : GenericFormatter(format)
+    , m_request(request)
+    , m_channel(channel)
+{
+	assert(m_channel != nullptr && "invalid channel in RequestStream");
+}
+
+RequestStream & RequestStream::operator<< (HTMLContent const& value)
+{
+	if (m_generic_format == GenericFormat::HTML)
+	{
+		m_generic_format = GenericFormat::HTMLContent;
+		GenericFormatter::operator<< (value.content);
+		m_generic_format = GenericFormat::HTML;
+	}
+	else
+	{
+		GenericFormatter::operator<< (value.content);
+	}
+	return *this;
+}
+
+void RequestStream::real_append(const std::string_view & s)
+{
+	(m_request.*m_channel)(s);
 }

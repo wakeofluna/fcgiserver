@@ -2,6 +2,7 @@
 #define FCGISERVER_REQUEST_H
 
 #include "fcgiserver_defs.h"
+#include "generic_formatter.h"
 #include "request_method.h"
 #include "symbol.h"
 #include "symbols.h"
@@ -21,6 +22,8 @@ namespace fcgiserver
 
 class ICgiData;
 class RequestPrivate;
+class Request;
+class RequestStream;
 
 enum class ContentEncoding
 {
@@ -46,19 +49,14 @@ public:
 	ICgiData      & cgi_data();
 	ICgiData const& cgi_data() const;
 
-	// Input from the FastCGI input channel : always verbatim
 	int read(char * buffer, size_t bufsize);
 
-	// Output over the FastCGI output channel : uses ContentEncoding
+	RequestStream write_stream();
 	int write(std::string_view const& buf);
-	int write(std::u32string_view const& buf);
-	int write_html(std::string_view const& buf);
-	int write_html(std::u32string_view const& buf);
-	int flush();
+	int flush_write();
 
-	// Output over the FastCGI error channel : always UTF8 encoded
+	RequestStream error_stream();
 	int error(std::string_view const& buf);
-	int error(std::u32string_view const& buf);
 	int flush_error();
 
 	EnvMap const& env_map() const;
@@ -82,7 +80,7 @@ public:
 
 	QueryParams const& query() const;
 	std::pair<bool,std::string_view> query(std::string_view const& key) const;
-	static std::pair<bool,std::u32string> query_decode(std::string_view const& value);
+	static std::pair<bool,std::string> query_decode(std::string_view const& value);
 	static std::pair<bool,std::u32string> utf8_decode(std::string_view const& value);
 	static std::pair<bool,std::string> utf8_encode(std::u32string_view const& value);
 
@@ -106,6 +104,36 @@ public:
 
 protected:
 	RequestPrivate * m_private;
+};
+
+struct DLL_PUBLIC HTMLContent
+{
+	explicit constexpr HTMLContent(std::string_view s) : content(s) {}
+	std::string_view content;
+};
+
+class DLL_PUBLIC RequestStream : public GenericFormatter
+{
+public:
+	RequestStream(Request & request, int (Request::*channel)(std::string_view const&), GenericFormat format);
+	RequestStream(Request const& other) = delete;
+	RequestStream(Request && other) = delete;
+	~RequestStream() = default;
+
+	RequestStream & operator<< (HTMLContent const& value);
+
+	template <typename T>
+	RequestStream & operator<< (T const& value)
+	{
+		GenericFormatter::operator<<(value);
+		return *this;
+	}
+
+protected:
+	Request & m_request;
+	int (Request::*m_channel)(std::string_view const& s);
+
+	void real_append(std::string_view const& s) override;
 };
 
 } // namespace fcgiserver

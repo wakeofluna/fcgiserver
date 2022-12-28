@@ -10,60 +10,53 @@ void hello_world(fcgiserver::Logger const& logger, fcgiserver::Request & request
 {
 	request.set_content_type("text/html");
 
-	request.write("<!DOCTYPE html>\n");
-	request.write("<html><body>\n");
-	request.write("<h1>Hello world!</h1>\n");
+	auto stream = request.write_stream();
+	stream << "<!DOCTYPE html>\n";
+	stream << "<html><body>\n";
+	stream << "<h1>Hello world!</h1>\n";
 
 	auto const& params = request.query();
 	if (!params.empty())
 	{
-		request.write("<h2>Query</h2>");
-		request.write("<table>\n");
-		request.write("<thead><th>Key</th><th>Value</th></thead>\n");
-		request.write("<tbody>\n");
+		stream << "<h2>Query</h2>";
+		stream << "<table>\n";
+		stream << "<thead><th>Key</th><th>Value</th></thead>\n";
+		stream << "<tbody>\n";
 
 		for (auto const& entry : params)
 		{
-			request.write("<tr><td>");
+			auto lhs = request.query_decode(entry.first);
+			auto rhs = request.query_decode(entry.second);
 
-			auto entry_key = request.query_decode(entry.first);
-			if (entry_key.first)
-				request.write_html(entry_key.second);
-			else
-				request.write("(invalid sequence)");
-
-			request.write("</td><td>");
-
-			auto entry_value = request.query_decode(entry.second);
-			if (entry_value.first)
-				request.write_html(entry_value.second);
-			else
-				request.write("(invalid sequence)");
-
-			request.write("</td></tr>\n");
+			stream << "<tr><td>";
+			stream << fcgiserver::HTMLContent(lhs.second);
+			stream << "</td><td>";
+			stream << fcgiserver::HTMLContent(rhs.second);
+			stream << "</td></tr>\n";
 		}
 
-		request.write("</tbody>\n");
-		request.write("</table>\n");
+		stream << "</tbody>\n";
+		stream << "</table>\n";
 	}
 
-	request.write("<h2>Environment</h2>");
-	request.write("<table>\n");
-	request.write("<thead><th>Key</th><th>Value</th></thead>\n");
-	request.write("<tbody>\n");
+	stream << "<h2>Environment</h2>";
+	stream << "<table>\n";
+	stream << "<thead><th>Key</th><th>Value</th></thead>\n";
+	stream << "<tbody>\n";
+
 	auto const& env_map = request.env_map();
 	for (auto & entry : env_map)
 	{
-		request.write("<tr><td>");
-		request.write(entry.first.to_string_view());
-		request.write("</td><td>");
-		request.write(entry.second);
-		request.write("</td></tr>\n");
+		stream << "<tr><td>";
+		stream << fcgiserver::HTMLContent(entry.first);
+		stream << "</td><td>";
+		stream << fcgiserver::HTMLContent(entry.second);
+		stream << "</td></tr>\n";
 	}
-	request.write("</tbody>\n");
-	request.write("</table>\n");
 
-	request.write("</body></html>\n");
+	stream << "</tbody>\n";
+	stream << "</table>\n";
+	stream << "</body></html>\n";
 }
 
 }

@@ -81,7 +81,8 @@ LogStream Logger::operator<< (LogLevel level) const
 }
 
 LogStream::LogStream(Logger const& log, LogLevel lvl)
-    : m_logger(log)
+    : LineFormatter(GenericFormat::UTF8)
+    , m_logger(log)
     , m_level(lvl)
 {
 }
