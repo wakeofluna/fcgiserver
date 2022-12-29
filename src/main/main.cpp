@@ -26,13 +26,13 @@ void hello_world(fcgiserver::RequestContext & context)
 
 		for (auto const& entry : params)
 		{
-			auto lhs = request.query_decode(entry.first);
-			auto rhs = request.query_decode(entry.second);
+			std::string lhs = request.query_decode(entry.first);
+			std::string rhs = request.query_decode(entry.second);
 
 			stream << "<tr><td>";
-			stream << fcgiserver::HTMLContent(lhs.second);
+			stream << fcgiserver::HTMLContent(lhs);
 			stream << "</td><td>";
-			stream << fcgiserver::HTMLContent(rhs.second);
+			stream << fcgiserver::HTMLContent(rhs);
 			stream << "</td></tr>\n";
 		}
 

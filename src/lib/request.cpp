@@ -272,7 +272,7 @@ std::pair<bool,std::string_view> Request::query(const std::string_view & key) co
 	return std::make_pair(false, std::string_view());
 }
 
-std::pair<bool,std::string> Request::query_decode(const std::string_view & value)
+std::string Request::query_decode(const std::string_view & value)
 {
 	std::string result;
 	result.reserve(value.size());
@@ -299,10 +299,10 @@ std::pair<bool,std::string> Request::query_decode(const std::string_view & value
 		}
 	}
 
-	return {true,std::move(result)};
+	return result;
 }
 
-std::pair<bool,std::u32string> Request::utf8_decode(std::string_view const& value)
+std::u32string Request::utf8_decode(std::string_view const& value)
 {
 	std::u32string result;
 	result.reserve(value.size());
@@ -313,17 +313,14 @@ std::pair<bool,std::u32string> Request::utf8_decode(std::string_view const& valu
 	{
 		char32_t glyph = utils::utf8_to_32(value[idx], mbstate);
 
-		if (!mbstate)
-			return {false,std::u32string()};
-
 		if (glyph != 0)
 			result.push_back(glyph);
 	}
 
-	return {true,std::move(result)};
+	return result;
 }
 
-std::pair<bool,std::string> Request::utf8_encode(std::u32string_view const& value)
+std::string Request::utf8_encode(std::u32string_view const& value)
 {
 	std::string result;
 	result.reserve(value.size() + 32);
@@ -333,13 +330,11 @@ std::pair<bool,std::string> Request::utf8_encode(std::u32string_view const& valu
 		uint8_t tmp[4];
 		size_t len = utils::utf32_to_8(glyph, tmp);
 
-		if (len == 0)
-			return {false,std::string()};
-
-		result.append(reinterpret_cast<char const*>(tmp), len);
+		if (len > 0)
+			result.append(reinterpret_cast<char const*>(tmp), len);
 	}
 
-	return {true, std::move(result)};
+	return result;
 }
 
 int Request::remote_port() const

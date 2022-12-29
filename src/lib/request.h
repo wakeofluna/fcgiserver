@@ -82,9 +82,9 @@ public:
 
 	QueryParams const& query() const;
 	std::pair<bool,std::string_view> query(std::string_view const& key) const;
-	static std::pair<bool,std::string> query_decode(std::string_view const& value);
-	static std::pair<bool,std::u32string> utf8_decode(std::string_view const& value);
-	static std::pair<bool,std::string> utf8_encode(std::u32string_view const& value);
+	static std::string query_decode(std::string_view const& value);
+	static std::u32string utf8_decode(std::string_view const& value);
+	static std::string utf8_encode(std::u32string_view const& value);
 
 	RequestMethod request_method() const;
 	Route const& full_route() const;

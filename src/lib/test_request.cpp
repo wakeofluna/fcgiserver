@@ -312,43 +312,34 @@ TEST_CASE("Request-Query", "[request]")
 
 	SECTION("Percent decoding")
 	{
-		std::pair<bool,std::string> result;
+		std::string result;
 
 		result = Request::query_decode("test%20environment");
-		REQUIRE( result.first );
-		REQUIRE( result.second == "test environment" );
+		REQUIRE( result == "test environment" );
 
 		result = Request::query_decode("percent%25hack");
-		REQUIRE( result.first );
-		REQUIRE( result.second == "percent%hack" );
+		REQUIRE( result == "percent%hack" );
 
 		result = Request::query_decode("invalid%a%Percent");
-		REQUIRE( result.first );
-		REQUIRE( result.second == "invalid%a%Percent");
+		REQUIRE( result == "invalid%a%Percent");
 
 		result = Request::query_decode("%48%49%4A%4B%4c%4d%4E%4f%50%51");
-		REQUIRE( result.first );
-		REQUIRE( result.second == "HIJKLMNOPQ" );
+		REQUIRE( result == "HIJKLMNOPQ" );
 
 		result = Request::query_decode("trailing%20percent%");
-		REQUIRE( result.first );
-		REQUIRE( result.second == "trailing percent%");
+		REQUIRE( result == "trailing percent%");
 
 		result = Request::query_decode("trailing%20percent%2");
-		REQUIRE( result.first );
-		REQUIRE( result.second == "trailing percent%2");
+		REQUIRE( result == "trailing percent%2");
 
 		result = Request::query_decode("trailing%20percent%20");
-		REQUIRE( result.first );
-		REQUIRE( result.second == "trailing percent ");
+		REQUIRE( result == "trailing percent ");
 
 		result = Request::query_decode("multibyte%20is%20evil%E2%84%a2right%40");
-		REQUIRE( result.first );
-		REQUIRE( result.second == "multibyte is evil\xe2\x84\xa2right@");
+		REQUIRE( result == "multibyte is evil\xe2\x84\xa2right@");
 
 		result = Request::query_decode("multibyte%20invalid%20evil%E2%F4%A2right%40");
-		REQUIRE( result.first );
-		REQUIRE( result.second == "multibyte invalid evil\xe2\xf4\xa2right@");
+		REQUIRE( result == "multibyte invalid evil\xe2\xf4\xa2right@");
 	}
 }
 
@@ -478,6 +469,7 @@ TEST_CASE("Request-UTF8", "[request]")
 	std::string_view line = "test \xe2\x84\xa2 true"sv;
 	std::u32string_view line32 = U"test ™ true"sv;
 	std::string_view line_invalid = "test \xe2\xf4\xa2 true"sv;
+	std::u32string_view line_invalid_expected = U"test � true"sv;
 
 	// Force out the headers first for the writing tests
 	request.send_headers();
@@ -486,22 +478,19 @@ TEST_CASE("Request-UTF8", "[request]")
 	SECTION("Decode UTF8")
 	{
 		auto result = request.utf8_decode(line);
-		REQUIRE( result.first );
-		REQUIRE( result.second == line32 );
+		REQUIRE( result == line32 );
 	}
 
 	SECTION("Decode invalid UTF8")
 	{
 		auto result = request.utf8_decode(line_invalid);
-		REQUIRE( !result.first );
-		REQUIRE( result.second.empty() );
+		REQUIRE( result == line_invalid_expected );
 	}
 
 	SECTION("Encode UTF8")
 	{
 		auto result = request.utf8_encode(line32);
-		REQUIRE( result.first );
-		REQUIRE( result.second == line );
+		REQUIRE( result == line );
 	}
 
 	SECTION("Write UTF8 as HTML")
