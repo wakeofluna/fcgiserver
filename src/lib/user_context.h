@@ -11,7 +11,8 @@ class DLL_PUBLIC UserContext
 public:
 	UserContext() = default;
 	virtual ~UserContext() = 0;
-	virtual int type() const = 0;
+	virtual int type() const;
+	virtual void tick();
 };
 
 }

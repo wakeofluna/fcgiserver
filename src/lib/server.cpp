@@ -17,15 +17,29 @@
 #include <sstream>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <mutex>
 #include <shared_mutex>
+
+
+using namespace fcgiserver;
 
 
 namespace
 {
 
-// Empty function to prevent default action TERM on signal
+thread_local volatile bool shutdown_triggered = false;
+thread_local volatile bool tick_triggered = false;
+
+// Signal sent to gracefully terminate a thread
 void sigusr1(int signum, siginfo_t *info, void *ucontext)
 {
+	shutdown_triggered = true;
+}
+
+// Signal sent to threads to tick their context
+void sigusr2(int signum, siginfo_t *info, void *ucontext)
+{
+	tick_triggered = true;
 }
 
 // Tiny default router
@@ -57,10 +71,7 @@ public:
 }
 
 
-namespace fcgiserver
-{
-
-class ServerPrivate
+class fcgiserver::ServerPrivate
 {
 public:
 	ServerPrivate()
@@ -68,6 +79,7 @@ public:
 	    , last_thread_id(0)
 	{}
 
+	std::mutex threads_lock;
 	std::shared_mutex context_lock;
 	std::string socket_path;
 	int socket_fd;
@@ -77,6 +89,7 @@ public:
 	size_t last_thread_id;
 	std::shared_ptr<UserContext> global_context;
 	std::function<UserContext*(std::shared_ptr<UserContext> const&)> create_thread_context;
+	std::chrono::seconds thread_context_tick_interval;
 };
 
 
@@ -84,6 +97,7 @@ Server::Server()
     : m_private(new ServerPrivate)
 {
 	m_private->logger.set_log_callback(std::make_unique<ConsoleLogCallback>());
+	m_private->thread_context_tick_interval = std::chrono::seconds(60);
 }
 
 Server::~Server()
@@ -119,6 +133,11 @@ void Server::set_thread_context(std::function<UserContext*(std::shared_ptr<UserC
 {
 	std::lock_guard<std::shared_mutex> guard(m_private->context_lock);
 	m_private->create_thread_context = std::move(create_context_function);
+}
+
+void Server::set_thread_context_tick_interval(std::chrono::seconds duration)
+{
+	m_private->thread_context_tick_interval = duration;
 }
 
 bool Server::initialize(std::string socket_path)
@@ -164,13 +183,22 @@ bool Server::initialize(std::string socket_path)
 
 bool Server::add_threads(size_t count)
 {
-	if (!m_private->router)
 	{
-		m_private->logger.log(LogLevel::Error, "No router provided, adding an empty route");
-		m_private->router.reset(new EmptyRouter());
+		std::lock_guard<std::shared_mutex> guard(m_private->context_lock);
+		if (!m_private->router)
+		{
+			m_private->logger.log(LogLevel::Error, "No router provided, adding an empty route");
+			m_private->router.reset(new EmptyRouter());
+		}
 	}
 
 	m_private->logger.info() << "Starting " << count << " threads";
+
+	std::lock_guard<std::mutex> guard(m_private->threads_lock);
+
+	// Add ticker thread
+	if (m_private->threads.empty())
+		m_private->threads.emplace_back(&Server::run_thread_tick_function, this);
 
 	for (size_t i = 0; i < count; ++i)
 		m_private->threads.emplace_back(&Server::run_thread_function, this, ++m_private->last_thread_id);
@@ -180,6 +208,8 @@ bool Server::add_threads(size_t count)
 
 void Server::kill_threads()
 {
+	std::lock_guard<std::mutex> guard(m_private->threads_lock);
+
 	std::for_each(m_private->threads.begin(), m_private->threads.end(), [] (std::thread & th) {
 		if (th.joinable())
 			pthread_kill(th.native_handle(), SIGUSR1);
@@ -224,30 +254,35 @@ int Server::wait_for_terminate_signal() const
 	return signum;
 }
 
+void Server::install_thread_signal_handlers()
+{
+	sigset_t sigset;
+	sigfillset(&sigset);
+	sigdelset(&sigset, SIGUSR1);
+	sigdelset(&sigset, SIGUSR2);
+	pthread_sigmask(SIG_SETMASK, &sigset, nullptr);
+
+	struct sigaction sa = {};
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = SA_SIGINFO;
+	sa.sa_sigaction = &sigusr1;
+	sigaction(SIGUSR1, &sa, nullptr);
+	sa.sa_sigaction = &sigusr2;
+	sigaction(SIGUSR2, &sa, nullptr);
+}
+
 void Server::run_thread_function(Server * server, size_t id)
 {
+	install_thread_signal_handlers();
 	server->thread_function(id);
 }
 
 void Server::thread_function(size_t id)
 {
-	{
-		sigset_t sigset;
-		sigfillset(&sigset);
-		sigdelset(&sigset, SIGUSR1);
-		pthread_sigmask(SIG_SETMASK, &sigset, nullptr);
-
-		struct sigaction sa = {};
-		sa.sa_flags = SA_SIGINFO;
-		sa.sa_sigaction = &sigusr1;
-		sigemptyset(&sa.sa_mask);
-		sigaction(SIGUSR1, &sa, nullptr);
-	}
-
 	int result;
 	FCGX_Request fcgx_request;
 
-	result = FCGX_InitRequest(&fcgx_request, m_private->socket_fd, 0);
+	result = FCGX_InitRequest(&fcgx_request, m_private->socket_fd, FCGI_FAIL_ACCEPT_ON_INTR);
 	if (result != 0)
 	{
 		m_private->logger.error() << "Error " << result << " on FCGX_InitRequest: " << strerror(-result);
@@ -267,14 +302,34 @@ void Server::thread_function(size_t id)
 
 	m_private->logger.debug() << "Thread #" << id << " started";
 
-	while (true)
+	while (!shutdown_triggered)
 	{
+		// Time to do some maintenance?
+		if (tick_triggered)
+		{
+			tick_triggered = false;
+			if (context.m_private->thread_context)
+				context.m_private->thread_context->tick();
+		}
+
 		result = FCGX_Accept_r(&fcgx_request);
 		if (result != 0)
 		{
-			if (result != -EINTR)
+			if (result == -9999)
+			{
+				// Regular exit
+				shutdown_triggered = true;
+				break;
+			}
+			else if (result != -EINTR)
+			{
 				m_private->logger.error() << "Error " << result << " on FCGX_Accept_r: " << strerror(-result);
-			break;
+				break;
+			}
+			else
+			{
+				continue;
+			}
 		}
 
 		std::shared_ptr<fcgiserver::IRouter> router;
@@ -324,5 +379,58 @@ void Server::thread_function(size_t id)
 	m_private->logger.debug() << "Thread #" << id << " finished";
 }
 
-
+void Server::run_thread_tick_function(Server * server)
+{
+	install_thread_signal_handlers();
+	server->thread_tick_function();
 }
+
+void Server::thread_tick_function()
+{
+	using clock = std::chrono::steady_clock;
+	size_t trigger_index = size_t(-1);
+	size_t num_threads;
+
+	m_private->logger.debug() << "Maintenance thread started";
+
+	std::unique_lock<std::mutex> guard(m_private->threads_lock);
+	num_threads = m_private->threads.size();
+	guard.unlock();
+
+	while (!shutdown_triggered)
+	{
+		// Have to manually sleep using nanosleep instead of sleep_until since
+		// glibc loops while EINTR which is not what we want here
+		auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(m_private->thread_context_tick_interval) / (num_threads > 1 ? num_threads-1 : 1);
+		auto seconds = std::chrono::floor<std::chrono::seconds>(remaining);
+		auto nanoseconds = std::chrono::floor<std::chrono::nanoseconds>(remaining - seconds);
+		struct timespec ts = {
+			static_cast<std::time_t>(seconds.count()),
+			static_cast<long>(nanoseconds.count()),
+		};
+
+		auto endpoint = clock::now() + remaining;
+		while (!shutdown_triggered && clock::now() < endpoint)
+			::nanosleep(&ts, &ts);
+
+		// Using try_lock to avoid deadlocks during shutdown
+		if (!shutdown_triggered && guard.try_lock())
+		{
+			// Hard-assuming that we are in the list and on index 0 so we skip it
+			// Could in theory tick the global context but that is never threadsafe so we don't do it
+			num_threads = m_private->threads.size();
+			trigger_index = (trigger_index + 1) % num_threads;
+			if (trigger_index == 0)
+				trigger_index = 1;
+
+			auto iter = std::next(m_private->threads.begin(), trigger_index);
+			if (iter != m_private->threads.end())
+				pthread_kill(iter->native_handle(), SIGUSR2);
+
+			guard.unlock();
+		}
+	}
+
+	m_private->logger.debug() << "Maintenance thread finished";
+}
+
