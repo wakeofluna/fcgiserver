@@ -1,5 +1,6 @@
 #include "router.h"
 #include "request.h"
+#include "request_context.h"
 #include "request_method.h"
 #include "symbol.h"
 #include "symbols.h"
@@ -93,7 +94,7 @@ Router::~Router()
 	delete m_private;
 }
 
-IRouter::RouteResult Router::handle_request(Logger const& logger, Request & request)
+IRouter::RouteResult Router::handle_request(RequestContext & context)
 {
 	std::shared_lock<std::shared_mutex> lock(m_private->route_mutex);
 
@@ -102,21 +103,21 @@ IRouter::RouteResult Router::handle_request(Logger const& logger, Request & requ
 	SubRoute * subroute = &m_private->route;
 	SubRoute * last_with_catch_recursive = subroute->has_catch_all_recursive() ? subroute : nullptr;
 
-	Request::Route const& route = request.relative_route();
+	Request::Route const& route = context.request().relative_route();
 	for (auto iter = route.cbegin(), iter_end = route.cend(); ; ++iter)
 	{
 		if (subroute->router)
 		{
 			Request::Route relative_route(iter, iter_end);
-			request.swap_relative_route(relative_route);
+			context.request().swap_relative_route(relative_route);
 
-			auto new_result = subroute->router->handle_request(logger, request);
+			auto new_result = subroute->router->handle_request(context);
 			if (new_result != RouteResult::NotFound)
 				route_result = new_result;
 			if (route_result == RouteResult::Handled)
 				return route_result;
 
-			request.swap_relative_route(relative_route);
+			context.request().swap_relative_route(relative_route);
 		}
 
 		if (iter == iter_end)
@@ -142,7 +143,7 @@ IRouter::RouteResult Router::handle_request(Logger const& logger, Request & requ
 		}
 		else
 		{
-			RequestMethod method = request.request_method();
+			RequestMethod method = context.request().request_method();
 
 			auto iter = subroute->endpoints.find(method);
 			if (iter == subroute->endpoints.cend())
@@ -152,7 +153,7 @@ IRouter::RouteResult Router::handle_request(Logger const& logger, Request & requ
 
 			if (iter != subroute->endpoints.cend())
 			{
-				iter->second(logger, request);
+				iter->second(context);
 				return RouteResult::Handled;
 			}
 
@@ -165,7 +166,7 @@ IRouter::RouteResult Router::handle_request(Logger const& logger, Request & requ
 		auto iter = last_with_catch_recursive->endpoints.find(RequestMethod::CatchAllRecursive);
 		if (iter != last_with_catch_recursive->endpoints.cend())
 		{
-			iter->second(logger, request);
+			iter->second(context);
 			return RouteResult::Handled;
 		}
 	}

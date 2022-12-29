@@ -6,8 +6,9 @@
 namespace
 {
 
-void hello_world(fcgiserver::Logger const& logger, fcgiserver::Request & request)
+void hello_world(fcgiserver::RequestContext & context)
 {
+	fcgiserver::Request & request = context.request();
 	request.set_content_type("text/html");
 
 	auto stream = request.write_stream();

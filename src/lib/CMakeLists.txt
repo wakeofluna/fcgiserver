@@ -6,17 +6,21 @@ set (SOURCES
 	line_formatter.cpp
 	logger.cpp
 	request.cpp
+	request_context.cpp
+	request_stream.cpp
 	router.cpp
 	server.cpp
 	symbol.cpp
 	symbol_server.cpp
 	symbols.cpp
+	user_context.cpp
 	utils.cpp
 )
 
 set (PRIVATE_HEADERS
 	console_log_callback.h
 	fast_cgi_data.h
+	request_context_private.h
 	symbol_server.h
 )
 
@@ -30,11 +34,14 @@ set (HEADERS
 	line_formatter.h
 	logger.h
 	request.h
+	request_context.h
 	request_method.h
+	request_stream.h
 	router.h
 	server.h
 	symbol.h
 	symbols.h
+	user_context.h
 	utils.h
 )
 

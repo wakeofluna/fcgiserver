@@ -2,12 +2,11 @@
 #define FCGISERVER_I_ROUTER_H
 
 #include "fcgiserver_defs.h"
-#include "logger.h"
 
 namespace fcgiserver
 {
 
-class Request;
+class RequestContext;
 
 class DLL_PUBLIC IRouter
 {
@@ -21,7 +20,7 @@ public:
 
 public:
 	virtual ~IRouter() = default;
-	virtual RouteResult handle_request(fcgiserver::Logger const& logger, fcgiserver::Request & request) = 0;
+	virtual RouteResult handle_request(fcgiserver::RequestContext & context) = 0;
 };
 
 } // namespace fcgiserver

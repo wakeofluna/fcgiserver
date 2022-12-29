@@ -2,8 +2,8 @@
 #define FCGISERVER_REQUEST_H
 
 #include "fcgiserver_defs.h"
-#include "generic_formatter.h"
 #include "request_method.h"
+#include "request_stream.h"
 #include "symbol.h"
 #include "symbols.h"
 
@@ -21,8 +21,9 @@ namespace fcgiserver
 {
 
 class ICgiData;
-class RequestPrivate;
+class Logger;
 class Request;
+class RequestPrivate;
 class RequestStream;
 
 enum class ContentEncoding
@@ -40,14 +41,15 @@ public:
 	using HeaderMap = std::unordered_map<Symbol,std::string>;
 	using Route = std::vector<std::string_view>;
 
-	Request(ICgiData & cgidata);
-	~Request();
-
+	Request(ICgiData & cgidata, Logger const& logger);
 	Request(Request && other) = delete;
 	Request(Request const& other) = delete;
+	~Request();
 
 	ICgiData      & cgi_data();
 	ICgiData const& cgi_data() const;
+
+	Logger const& logger() const;
 
 	int read(char * buffer, size_t bufsize);
 
@@ -96,44 +98,13 @@ public:
 	void set_content_type(std::string content_type, ContentEncoding encoding);
 	void set_header(Symbol key, std::string value);
 	void set_header(Symbol key, int value);
+	void send_headers();
 
 	ContentEncoding encoding() const;
 	void set_encoding(ContentEncoding encoding);
 
-	void send_headers();
-
 protected:
 	RequestPrivate * m_private;
-};
-
-struct DLL_PUBLIC HTMLContent
-{
-	explicit constexpr HTMLContent(std::string_view s) : content(s) {}
-	std::string_view content;
-};
-
-class DLL_PUBLIC RequestStream : public GenericFormatter
-{
-public:
-	RequestStream(Request & request, int (Request::*channel)(std::string_view const&), GenericFormat format);
-	RequestStream(Request const& other) = delete;
-	RequestStream(Request && other) = delete;
-	~RequestStream() = default;
-
-	RequestStream & operator<< (HTMLContent const& value);
-
-	template <typename T>
-	RequestStream & operator<< (T const& value)
-	{
-		GenericFormatter::operator<<(value);
-		return *this;
-	}
-
-protected:
-	Request & m_request;
-	int (Request::*m_channel)(std::string_view const& s);
-
-	void real_append(std::string_view const& s) override;
 };
 
 } // namespace fcgiserver

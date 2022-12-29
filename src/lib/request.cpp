@@ -1,4 +1,5 @@
 #include "i_cgi_data.h"
+#include "logger.h"
 #include "request.h"
 #include "utils.h"
 #include <cassert>
@@ -57,14 +58,16 @@ GenericFormat to_format(ContentEncoding encoding)
 class fcgiserver::RequestPrivate
 {
 public:
-	RequestPrivate(ICgiData & icd)
+	RequestPrivate(ICgiData & icd, Logger const& lg)
 	    : cgi_data(icd)
+	    , logger(lg)
 	    , headers_sent(false)
 	    , query_parsed(false)
 	    , route_parsed(false)
 	{}
 
 	ICgiData & cgi_data;
+	Logger const& logger;
 	Request::EnvMap env_map;
 	Request::HeaderMap headers;
 	Request::QueryParams query;
@@ -76,19 +79,9 @@ public:
 	bool route_parsed;
 };
 
-Request::Request(ICgiData & cgidata)
-    : m_private(new RequestPrivate(cgidata))
+Request::Request(ICgiData & cgidata, Logger const& logger)
+    : m_private(new RequestPrivate(cgidata, logger))
 {
-}
-
-ICgiData & Request::cgi_data()
-{
-	return m_private->cgi_data;
-}
-
-ICgiData const& Request::cgi_data() const
-{
-	return m_private->cgi_data;
 }
 
 Request::~Request()
@@ -103,6 +96,21 @@ Request::~Request()
 		write(message);
 	}
 	delete m_private;
+}
+
+ICgiData & Request::cgi_data()
+{
+	return m_private->cgi_data;
+}
+
+ICgiData const& Request::cgi_data() const
+{
+	return m_private->cgi_data;
+}
+
+const Logger & Request::logger() const
+{
+	return m_private->logger;
 }
 
 int Request::read(char * buffer, size_t bufsize)
@@ -385,16 +393,6 @@ void Request::set_header(Symbol key, int value)
 	m_private->headers.emplace(key, std::to_string(value));
 }
 
-ContentEncoding Request::encoding() const
-{
-	return m_private->encoding;
-}
-
-void Request::set_encoding(ContentEncoding encoding)
-{
-	m_private->encoding = encoding;
-}
-
 void Request::send_headers()
 {
 	if (m_private->headers_sent)
@@ -416,31 +414,12 @@ void Request::send_headers()
 	m_private->headers_sent = true;
 }
 
-
-RequestStream::RequestStream(Request & request, int (Request::*channel)(const std::string_view &), GenericFormat format)
-    : GenericFormatter(format)
-    , m_request(request)
-    , m_channel(channel)
+ContentEncoding Request::encoding() const
 {
-	assert(m_channel != nullptr && "invalid channel in RequestStream");
+	return m_private->encoding;
 }
 
-RequestStream & RequestStream::operator<< (HTMLContent const& value)
+void Request::set_encoding(ContentEncoding encoding)
 {
-	if (m_generic_format == GenericFormat::HTML)
-	{
-		m_generic_format = GenericFormat::HTMLContent;
-		GenericFormatter::operator<< (value.content);
-		m_generic_format = GenericFormat::HTML;
-	}
-	else
-	{
-		GenericFormatter::operator<< (value.content);
-	}
-	return *this;
-}
-
-void RequestStream::real_append(const std::string_view & s)
-{
-	(m_request.*m_channel)(s);
+	m_private->encoding = encoding;
 }

@@ -1,5 +1,6 @@
 #include "router.h"
 #include "request.h"
+#include "request_context.h"
 #include "test_mock_cgi_data.h"
 #include "test_mock_logger.h"
 #include <iostream>
@@ -19,10 +20,9 @@ struct DummyRoutes
 {
 	Router::Callback operator[] (int index)
 	{
-		return [this,index](Logger const& logger, Request & request)
+		return [this,index](RequestContext & context)
 		{
-			(void)logger;
-			calls.push_back({index, request.relative_route()});
+			calls.push_back({index, context.request().relative_route()});
 		};
 	}
 
@@ -80,8 +80,9 @@ TEST_CASE("Router-Single router", "[router]")
 	{
 		{
 			envp[0] = nullptr;
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(1, {}));
 		}
@@ -90,8 +91,9 @@ TEST_CASE("Router-Single router", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(1, {}));
 		}
@@ -101,8 +103,9 @@ TEST_CASE("Router-Single router", "[router]")
 	{
 		{
 			envp[0] = "DOCUMENT_URI=/foo";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(2, {"foo"}));
 		}
@@ -111,8 +114,9 @@ TEST_CASE("Router-Single router", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/foo/";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(2, {"foo"}));
 		}
@@ -120,8 +124,9 @@ TEST_CASE("Router-Single router", "[router]")
 		dummy_routes.clear();
 		{
 			envp[0] = "DOCUMENT_URI=/bar";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(3, {"bar"}));
 		}
@@ -130,16 +135,18 @@ TEST_CASE("Router-Single router", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/evil";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::NotFound );
 			REQUIRE( dummy_routes.calls.empty() );
 		}
 
 		{
 			envp[0] = "DOCUMENT_URI=/down";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::NotFound );
 			REQUIRE( dummy_routes.calls.empty() );
 		}
@@ -149,8 +156,9 @@ TEST_CASE("Router-Single router", "[router]")
 	{
 		{
 			envp[0] = "DOCUMENT_URI=/foo/nope";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::NotFound );
 			REQUIRE( dummy_routes.calls.empty() );
 		}
@@ -159,8 +167,9 @@ TEST_CASE("Router-Single router", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/foo/bar";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::NotFound );
 			REQUIRE( dummy_routes.calls.empty() );
 		}
@@ -169,8 +178,9 @@ TEST_CASE("Router-Single router", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/down/into";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::NotFound );
 			REQUIRE( dummy_routes.calls.empty() );
 		}
@@ -179,8 +189,9 @@ TEST_CASE("Router-Single router", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/down/into/the";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::NotFound );
 			REQUIRE( dummy_routes.calls.empty() );
 		}
@@ -189,8 +200,9 @@ TEST_CASE("Router-Single router", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/down/into/the/deep";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(4, {"down","into","the","deep"}) );
 		}
@@ -199,8 +211,9 @@ TEST_CASE("Router-Single router", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/down/we/go/";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(5, {"down","we","go"}) );
 		}
@@ -216,8 +229,9 @@ TEST_CASE("Router-Single router", "[router]")
 		{
 			envp[0] = "DOCUMENT_URI=/foo";
 			envp[1] = "REQUEST_METHOD=GET";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(8, {"foo"}) );
 		}
@@ -227,8 +241,9 @@ TEST_CASE("Router-Single router", "[router]")
 		{
 			envp[0] = "DOCUMENT_URI=/foo";
 			envp[1] = "REQUEST_METHOD=POST";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(2, {"foo"}) );
 		}
@@ -238,8 +253,9 @@ TEST_CASE("Router-Single router", "[router]")
 		{
 			envp[0] = "DOCUMENT_URI=/foo";
 			envp[1] = "REQUEST_METHOD=DELETE";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(9, {"foo"}) );
 		}
@@ -249,8 +265,9 @@ TEST_CASE("Router-Single router", "[router]")
 		{
 			envp[0] = "DOCUMENT_URI=/down";
 			envp[1] = "REQUEST_METHOD=GET";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::InvalidMethod );
 			REQUIRE( dummy_routes.calls.empty() );
 		}
@@ -260,8 +277,9 @@ TEST_CASE("Router-Single router", "[router]")
 		{
 			envp[0] = "DOCUMENT_URI=/down";
 			envp[1] = "REQUEST_METHOD=POST";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(10, {"down"}) );
 		}
@@ -281,8 +299,9 @@ TEST_CASE("Router-Single router", "[router]")
 		{
 			envp[0] = "DOCUMENT_URI=/down/into/the/deep";
 			envp[1] = nullptr;
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(4, {"down","into","the","deep"}) );
 		}
@@ -291,8 +310,9 @@ TEST_CASE("Router-Single router", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/down/into/the/deepest";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(8, {"down","into","the","deepest"}) );
 		}
@@ -301,8 +321,9 @@ TEST_CASE("Router-Single router", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/down/into";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(8, {"down","into"}) );
 		}
@@ -312,8 +333,9 @@ TEST_CASE("Router-Single router", "[router]")
 		{
 			envp[0] = "DOCUMENT_URI=/down/into/water";
 			envp[1] = "REQUEST_METHOD=DELETE";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(9, {"down","into","water"}) );
 		}
@@ -323,8 +345,9 @@ TEST_CASE("Router-Single router", "[router]")
 		{
 			envp[0] = "DOCUMENT_URI=/down/into/water";
 			envp[1] = "REQUEST_METHOD=PUT";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::InvalidMethod );
 			REQUIRE( dummy_routes.calls.empty() );
 		}
@@ -334,8 +357,9 @@ TEST_CASE("Router-Single router", "[router]")
 		{
 			envp[0] = "DOCUMENT_URI=/api/user/WakeOfLuna/posts";
 			envp[1] = "REQUEST_METHOD=PUT";
-			Request request(cgidata);
-			IRouter::RouteResult result = router.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = router.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(7, {"api","user","WakeOfLuna","posts"}) );
 		}
@@ -376,8 +400,9 @@ TEST_CASE("Router-Multiple routers", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/api";
-			Request request(cgidata);
-			IRouter::RouteResult result = root.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = root.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(1, {}) );
 		}
@@ -386,8 +411,9 @@ TEST_CASE("Router-Multiple routers", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/api/foo";
-			Request request(cgidata);
-			IRouter::RouteResult result = root.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = root.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(2, {"foo"}) );
 		}
@@ -396,8 +422,9 @@ TEST_CASE("Router-Multiple routers", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/work/";
-			Request request(cgidata);
-			IRouter::RouteResult result = root.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = root.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(7, {}) );
 		}
@@ -406,8 +433,9 @@ TEST_CASE("Router-Multiple routers", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/bar";
-			Request request(cgidata);
-			IRouter::RouteResult result = root.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = root.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::NotFound );
 			REQUIRE( dummy_routes.calls.empty() );
 		}
@@ -422,8 +450,9 @@ TEST_CASE("Router-Multiple routers", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/api/down/into/the/deep";
-			Request request(cgidata);
-			IRouter::RouteResult result = root.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = root.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(4, {"down","into","the","deep"}) );
 		}
@@ -432,8 +461,9 @@ TEST_CASE("Router-Multiple routers", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/api/down/monster";
-			Request request(cgidata);
-			IRouter::RouteResult result = root.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = root.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(10, {"monster"}) );
 		}
@@ -442,8 +472,9 @@ TEST_CASE("Router-Multiple routers", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/api/down/for/victory";
-			Request request(cgidata);
-			IRouter::RouteResult result = root.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = root.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(11, {"api","down","for","victory"}) );
 		}
@@ -452,8 +483,9 @@ TEST_CASE("Router-Multiple routers", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/api/down/we/go";
-			Request request(cgidata);
-			IRouter::RouteResult result = root.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = root.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(8, {"we","go"}) );
 		}
@@ -462,8 +494,9 @@ TEST_CASE("Router-Multiple routers", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/api/down/into/water";
-			Request request(cgidata);
-			IRouter::RouteResult result = root.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = root.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(9, {"into","water"}) );
 		}
@@ -472,8 +505,9 @@ TEST_CASE("Router-Multiple routers", "[router]")
 
 		{
 			envp[0] = "DOCUMENT_URI=/api/down/into/lava";
-			Request request(cgidata);
-			IRouter::RouteResult result = root.handle_request(logger, request);
+			Request request(cgidata, logger);
+			RequestContext context(request);
+			IRouter::RouteResult result = root.handle_request(context);
 			REQUIRE( result == IRouter::RouteResult::Handled );
 			REQUIRE( dummy_routes.calls == check(6, {"down","into","lava"}) );
 		}

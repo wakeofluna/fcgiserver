@@ -1,5 +1,7 @@
 #include "server.h"
 #include "request.h"
+#include "request_context.h"
+#include "request_context_private.h"
 #include "fast_cgi_data.h"
 #include "i_router.h"
 #include "console_log_callback.h"
@@ -15,7 +17,7 @@
 #include <sstream>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <mutex>
+#include <shared_mutex>
 
 
 namespace
@@ -33,8 +35,9 @@ public:
 	EmptyRouter() {}
 	~EmptyRouter() {}
 
-	RouteResult handle_request(fcgiserver::Logger const& logger, fcgiserver::Request & request) override
+	RouteResult handle_request(fcgiserver::RequestContext & context) override
 	{
+		fcgiserver::Request & request = context.request();
 		std::string_view uri = request.document_uri();
 		if (uri != "/"sv)
 			return RouteResult::NotFound;
@@ -75,13 +78,15 @@ public:
 		va_end(vl);
 	}
 
+	std::shared_mutex context_lock;
 	std::string socket_path;
 	int socket_fd;
 	Logger logger;
 	std::shared_ptr<IRouter> router;
 	std::list<std::thread> threads;
+	std::shared_ptr<UserContext> global_context;
+	std::function<UserContext*(std::shared_ptr<UserContext> const&)> create_thread_context;
 };
-
 
 
 Server::Server()
@@ -96,6 +101,11 @@ Server::~Server()
 	delete m_private;
 }
 
+Logger & Server::logger()
+{
+	return m_private->logger;
+}
+
 void Server::set_router(std::shared_ptr<IRouter> router)
 {
 	if (!router)
@@ -103,12 +113,21 @@ void Server::set_router(std::shared_ptr<IRouter> router)
 		m_private->log(LogLevel::Error, "Attempted to register an invalid router");
 		return;
 	}
+
+	std::lock_guard<std::shared_mutex> guard(m_private->context_lock);
 	m_private->router = router;
 }
 
-Logger & Server::logger()
+void Server::set_global_context(std::shared_ptr<UserContext> const& new_context)
 {
-	return m_private->logger;
+	std::lock_guard<std::shared_mutex> guard(m_private->context_lock);
+	m_private->global_context = new_context;
+}
+
+void Server::set_thread_context(std::function<UserContext*(std::shared_ptr<UserContext> const&)> && create_context_function)
+{
+	std::lock_guard<std::shared_mutex> guard(m_private->context_lock);
+	m_private->create_thread_context = std::move(create_context_function);
 }
 
 bool Server::initialize(std::string socket_path)
@@ -244,6 +263,16 @@ void Server::thread_function()
 		return;
 	}
 
+	fcgiserver::RequestContext context;
+	{
+		std::lock_guard<std::shared_mutex> guard(m_private->context_lock);
+		context.m_private->server = this;
+		if (m_private->create_thread_context)
+			context.m_private->thread_context.reset(
+			                m_private->create_thread_context(m_private->global_context)
+			            );
+	}
+
 	m_private->log(LogLevel::Info, "Thread started");
 
 	while (true)
@@ -256,10 +285,18 @@ void Server::thread_function()
 			break;
 		}
 
-		fcgiserver::FastCgiData fcgi_data(fcgx_request);
-		fcgiserver::Request request(fcgi_data);
+		std::shared_ptr<fcgiserver::IRouter> router;
+		{
+			std::shared_lock<std::shared_mutex> guard(m_private->context_lock);
+			context.m_private->global_context = m_private->global_context;
+			router = m_private->router;
+		}
 
-		IRouter::RouteResult route_result = m_private->router->handle_request(m_private->logger, request);
+		fcgiserver::FastCgiData fcgi_data(fcgx_request);
+		fcgiserver::Request request(fcgi_data, m_private->logger);
+		context.m_private->request = &request;
+
+		IRouter::RouteResult route_result = router->handle_request(context);
 		if (request.http_status().empty())
 		{
 			switch (route_result)
@@ -282,6 +319,14 @@ void Server::thread_function()
 		// Log the request/result
 		if (auto * cb = m_private->logger.log_callback(); cb)
 			cb->log_request(request);
+
+		// Process context updates
+		if (context.m_private->replaced_global_context)
+		{
+			context.m_private->replaced_global_context = false;
+			std::lock_guard<std::shared_mutex> guard(m_private->context_lock);
+			m_private->global_context = context.m_private->global_context;
+		}
 	}
 
 	m_private->log(LogLevel::Info, "Thread finished");

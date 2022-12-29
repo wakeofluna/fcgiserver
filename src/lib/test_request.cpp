@@ -1,5 +1,6 @@
 #include "request.h"
 #include "test_mock_cgi_data.h"
+#include "test_mock_logger.h"
 #include <catch2/catch_test_macros.hpp>
 
 using namespace fcgiserver;
@@ -50,7 +51,8 @@ TEST_CASE("Request", "[request]")
 	SECTION("EnvMap")
 	{
 		MockCgiData cgidata(std::string(), g_envp);
-		Request request(cgidata);
+		Logger logger = MockLogger::create();
+		Request request(cgidata, logger);
 
 		auto & env_map = request.env_map();
 		REQUIRE(env_map.size() == g_envp_size - 1); // illegal entry deducted
@@ -81,7 +83,8 @@ TEST_CASE("Request-RequestMethod", "[request]")
 	};
 
 	MockCgiData cgidata(std::string(), envp);
-	Request request(cgidata);
+	Logger logger = MockLogger::create();
+	Request request(cgidata, logger);
 
 	SECTION("UNKNOWN")
 	{
@@ -142,7 +145,8 @@ TEST_CASE("Request-Query", "[request]")
 	};
 
 	MockCgiData cgidata(std::string(), envp);
-	Request request(cgidata);
+	Logger logger = MockLogger::create();
+	Request request(cgidata, logger);
 
 	SECTION("Not provided")
 	{
@@ -356,7 +360,8 @@ TEST_CASE("Request-Port", "[request]")
 	};
 
 	MockCgiData cgidata(std::string(), envp);
-	Request request(cgidata);
+	Logger logger = MockLogger::create();
+	Request request(cgidata, logger);
 
 	SECTION("Not provided")
 	{
@@ -411,8 +416,8 @@ TEST_CASE("Request-DoNotTrack", "[request]")
 	};
 
 	MockCgiData cgidata(std::string(), envp);
-	Request request(cgidata);
-
+	Logger logger = MockLogger::create();
+	Request request(cgidata, logger);
 
 	SECTION("Not provided")
 	{
@@ -467,7 +472,8 @@ TEST_CASE("Request-UTF8", "[request]")
 	};
 
 	MockCgiData cgidata(std::string(), envp);
-	Request request(cgidata);
+	Logger logger = MockLogger::create();
+	Request request(cgidata, logger);
 
 	std::string_view line = "test \xe2\x84\xa2 true"sv;
 	std::u32string_view line32 = U"test ™ true"sv;
@@ -556,7 +562,8 @@ TEST_CASE("Request-Route", "[request]")
 	};
 
 	MockCgiData cgidata(std::string(), envp);
-	Request request(cgidata);
+	Logger logger = MockLogger::create();
+	Request request(cgidata, logger);
 
 	SECTION("No URI")
 	{

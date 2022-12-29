@@ -3,6 +3,7 @@
 
 #include "fcgiserver_defs.h"
 #include "i_router.h"
+#include "request_context.h"
 #include "request_method.h"
 #include <functional>
 #include <memory>
@@ -15,13 +16,13 @@ class RouterPrivate;
 class DLL_PUBLIC Router : public IRouter
 {
 public:
-	using Callback = std::function<void(Logger const&, Request&)>;
+	using Callback = std::function<void(RequestContext&)>;
 
 public:
 	Router();
 	~Router();
 
-	IRouter::RouteResult handle_request(Logger const& logger, Request & request) override;
+	IRouter::RouteResult handle_request(RequestContext & context) override;
 
 	void add_route(std::shared_ptr<IRouter> router, std::string_view const& route);
 	void add_route(Callback && callback, std::string_view const& route, RequestMethod method = RequestMethod::CatchAllHere);

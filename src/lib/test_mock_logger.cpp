@@ -55,7 +55,7 @@ TEST_CASE("MockLogger", "[logger]")
 		};
 
 		MockCgiData cgidata(std::string(), envp);
-		Request request(cgidata);
+		Request request(cgidata, logger);
 
 		request.set_http_status(887);
 		logger.log_callback()->log_request(request);
