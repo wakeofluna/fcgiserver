@@ -23,6 +23,11 @@ RequestContext::~RequestContext()
 	delete m_private;
 }
 
+size_t RequestContext::thread_id() const
+{
+	return m_private->thread_id;
+}
+
 Server const* RequestContext::server() const
 {
 	return m_private->server;

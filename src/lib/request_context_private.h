@@ -16,11 +16,13 @@ class DLL_PRIVATE RequestContextPrivate
 {
 public:
 	RequestContextPrivate()
-	    : server(nullptr)
+	    : thread_id(0)
+	    , server(nullptr)
 	    , request(nullptr)
 	    , replaced_global_context(false)
 	{}
 
+	size_t thread_id;
 	Server const* server;
 	Request * request;
 	std::shared_ptr<UserContext> global_context;

@@ -36,8 +36,8 @@ public:
 	int wait_for_terminate_signal() const;
 
 private:
-	static void run_thread_function(Server *);
-	void thread_function();
+	static void run_thread_function(Server *, size_t);
+	void thread_function(size_t);
 
 	ServerPrivate * m_private;
 };

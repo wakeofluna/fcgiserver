@@ -63,20 +63,10 @@ namespace fcgiserver
 class ServerPrivate
 {
 public:
-	ServerPrivate() : socket_fd(0) {}
-
-	inline void log(LogLevel lvl, const char * msg) const
-	{
-		logger.log(lvl, msg);
-	}
-
-	void logf(LogLevel lvl, const char * fmt, ...) const
-	{
-		std::va_list vl;
-		va_start(vl, fmt);
-		logger.stream(lvl).vprintf(fmt, vl);
-		va_end(vl);
-	}
+	ServerPrivate()
+	    : socket_fd(0)
+	    , last_thread_id(0)
+	{}
 
 	std::shared_mutex context_lock;
 	std::string socket_path;
@@ -84,6 +74,7 @@ public:
 	Logger logger;
 	std::shared_ptr<IRouter> router;
 	std::list<std::thread> threads;
+	size_t last_thread_id;
 	std::shared_ptr<UserContext> global_context;
 	std::function<UserContext*(std::shared_ptr<UserContext> const&)> create_thread_context;
 };
@@ -110,7 +101,7 @@ void Server::set_router(std::shared_ptr<IRouter> router)
 {
 	if (!router)
 	{
-		m_private->log(LogLevel::Error, "Attempted to register an invalid router");
+		m_private->logger.log(LogLevel::Error, "Attempted to register an invalid router");
 		return;
 	}
 
@@ -137,7 +128,7 @@ bool Server::initialize(std::string socket_path)
 	int result = FCGX_Init();
 	if (result != 0)
 	{
-		m_private->logf(LogLevel::Error, "Error %d on FCGX_Init!", result);
+		m_private->logger.error() << "Error " << result << " on FCGX_Init";
 		return false;
 	}
 
@@ -146,7 +137,7 @@ bool Server::initialize(std::string socket_path)
 		// Running standalone, need to create our own socket
 		if (socket_path.empty())
 		{
-			m_private->log(LogLevel::Error, "Running as CGI but no socket_path given!");
+			m_private->logger.log(LogLevel::Error, "Running as CGI but no socket_path given!");
 			return false;
 		}
 
@@ -155,7 +146,7 @@ bool Server::initialize(std::string socket_path)
 		sockfd = FCGX_OpenSocket(socket_path.c_str(), 10);
 		if (sockfd == -1)
 		{
-			m_private->logf(LogLevel::Error, "Create socket error : %s", strerror(errno));
+			m_private->logger.error() << "Create socket error: " << strerror(errno);
 			return false;
 		}
 
@@ -175,14 +166,14 @@ bool Server::add_threads(size_t count)
 {
 	if (!m_private->router)
 	{
-		m_private->log(LogLevel::Error, "No router provided, adding an empty route");
+		m_private->logger.log(LogLevel::Error, "No router provided, adding an empty route");
 		m_private->router.reset(new EmptyRouter());
 	}
 
-	m_private->logf(LogLevel::Info, "Starting %u threads", count);
+	m_private->logger.info() << "Starting " << count << " threads";
 
-	for (unsigned int i = 0; i < count; ++i)
-		m_private->threads.emplace_back(&Server::run_thread_function, this);
+	for (size_t i = 0; i < count; ++i)
+		m_private->threads.emplace_back(&Server::run_thread_function, this, ++m_private->last_thread_id);
 
 	return true;
 }
@@ -233,12 +224,12 @@ int Server::wait_for_terminate_signal() const
 	return signum;
 }
 
-void Server::run_thread_function(Server * server)
+void Server::run_thread_function(Server * server, size_t id)
 {
-	server->thread_function();
+	server->thread_function(id);
 }
 
-void Server::thread_function()
+void Server::thread_function(size_t id)
 {
 	{
 		sigset_t sigset;
@@ -259,13 +250,14 @@ void Server::thread_function()
 	result = FCGX_InitRequest(&fcgx_request, m_private->socket_fd, 0);
 	if (result != 0)
 	{
-		m_private->logf(LogLevel::Error, "Error %d on FCGX_InitRequest! (%s)", result, strerror(-result));
+		m_private->logger.error() << "Error " << result << " on FCGX_InitRequest: " << strerror(-result);
 		return;
 	}
 
 	fcgiserver::RequestContext context;
 	{
 		std::lock_guard<std::shared_mutex> guard(m_private->context_lock);
+		context.m_private->thread_id = id;
 		context.m_private->server = this;
 		if (m_private->create_thread_context)
 			context.m_private->thread_context.reset(
@@ -273,7 +265,7 @@ void Server::thread_function()
 			            );
 	}
 
-	m_private->log(LogLevel::Info, "Thread started");
+	m_private->logger.debug() << "Thread #" << id << " started";
 
 	while (true)
 	{
@@ -281,7 +273,7 @@ void Server::thread_function()
 		if (result != 0)
 		{
 			if (result != -EINTR)
-				m_private->logf(LogLevel::Error, "Error %d on FCGX_Accept_r! (%s)", result, strerror(-result));
+				m_private->logger.error() << "Error " << result << " on FCGX_Accept_r: " << strerror(-result);
 			break;
 		}
 
@@ -329,7 +321,7 @@ void Server::thread_function()
 		}
 	}
 
-	m_private->log(LogLevel::Info, "Thread finished");
+	m_private->logger.debug() << "Thread #" << id << " finished";
 }
 
 

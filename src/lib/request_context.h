@@ -23,6 +23,7 @@ public:
 	explicit RequestContext(Request & req);
 	~RequestContext();
 
+	size_t thread_id() const;
 	Server const* server() const;
 	Logger const& logger() const;
 	Request & request() const;
