@@ -343,7 +343,20 @@ void Server::thread_function(size_t id)
 		fcgiserver::Request request(fcgi_data, m_private->logger);
 		context.m_private->request = &request;
 
-		IRouter::RouteResult route_result = router->handle_request(context);
+		IRouter::RouteResult route_result = IRouter::RouteResult::InternalError;
+		try
+		{
+			route_result = router->handle_request(context);
+		}
+		catch (std::exception & exc)
+		{
+			m_private->logger.error() << "Uncaught exception in thread " << id << ": " << exc.what() << " - "<< request.request_method_string() << ' ' << request.document_uri();;
+		}
+		catch (...)
+		{
+			m_private->logger.error() << "Uncaught unknown exception in thread " << id << " - "<< request.request_method_string() << ' ' << request.document_uri();;;
+		}
+
 		if (request.http_status().empty())
 		{
 			switch (route_result)
@@ -357,11 +370,26 @@ void Server::thread_function(size_t id)
 				case IRouter::RouteResult::InvalidMethod:
 					request.set_http_status(405);
 					break;
+				case IRouter::RouteResult::InternalError:
+					request.set_http_status(500);
+					break;
 			}
 		}
 
 		// Make sure the headers are sent
-		request.send_headers();
+		if (!request.headers_sent())
+		{
+			// TODO Need some form of proper default pages?
+			if (request.content_type().empty())
+			{
+				request.set_content_type("text/plain");
+				request.write_stream() << request.http_status();
+			}
+			else
+			{
+				request.send_headers();
+			}
+		}
 
 		// Log the request/result
 		if (auto * cb = m_private->logger.log_callback(); cb)

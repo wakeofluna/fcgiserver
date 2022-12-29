@@ -16,6 +16,7 @@ public:
 		Handled,
 		NotFound,
 		InvalidMethod,
+		InternalError,
 	};
 
 public:

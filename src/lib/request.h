@@ -79,6 +79,7 @@ public:
 	HeaderMap const& headers() const;
 	std::string_view header(Symbol symbol) const;
 	inline std::string_view http_status() const { return header(symbols::Status); }
+	inline std::string_view content_type() const { return header(symbols::ContentType); }
 
 	QueryParams const& query() const;
 	std::pair<bool,std::string_view> query(std::string_view const& key) const;
@@ -99,6 +100,7 @@ public:
 	bool set_header(Symbol key, std::string value);
 	bool set_header(Symbol key, int value);
 	void send_headers();
+	bool headers_sent() const;
 
 	ContentEncoding encoding() const;
 	void set_encoding(ContentEncoding encoding);

@@ -431,6 +431,11 @@ void Request::send_headers()
 	m_private->headers_sent = true;
 }
 
+bool Request::headers_sent() const
+{
+	return m_private->headers_sent;
+}
+
 ContentEncoding Request::encoding() const
 {
 	return m_private->encoding;
