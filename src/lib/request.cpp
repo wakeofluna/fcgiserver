@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cstring>
 #include <charconv>
+#include <mutex>
 
 using namespace fcgiserver;
 using namespace std::literals::string_view_literals;
@@ -53,6 +54,11 @@ GenericFormat to_format(ContentEncoding encoding)
 	return GenericFormat::Verbatim;
 }
 
+void issue_headers_sent_warning(Symbol header, fcgiserver::Request const& request)
+{
+	request.logger().error() << "Attempted to modify header \"" << header << "\" after headers already sent - "sv << request.request_method_string() << ' ' << request.document_uri();
+}
+
 }
 
 class fcgiserver::RequestPrivate
@@ -74,6 +80,7 @@ public:
 	Request::Route route;
 	Request::Route relative_route;
 	ContentEncoding encoding;
+	std::once_flag headers_sent_warning;
 	bool headers_sent;
 	bool query_parsed;
 	bool route_parsed;
@@ -353,39 +360,54 @@ bool Request::do_not_track() const
 	return value == "1"sv;
 }
 
-void Request::set_http_status(uint16_t code)
+bool Request::set_http_status(uint16_t code)
 {
-	m_private->headers.emplace(symbols::Status, std::to_string(code));
+	return set_header(symbols::Status, std::to_string(code));
 }
 
-void Request::set_content_type(std::string content_type)
+bool Request::set_content_type(std::string content_type)
 {
 	// Some very crude autodetection
 	std::string_view ct = content_type;
+	ContentEncoding new_encoding;
 	if (ct == "text/html"sv)
-		m_private->encoding = ContentEncoding::HTML;
+		new_encoding = ContentEncoding::HTML;
 	else if (ct.substr(0, 5) == "text/"sv)
-		m_private->encoding = ContentEncoding::UTF8;
+		new_encoding = ContentEncoding::UTF8;
 	else
-		m_private->encoding = ContentEncoding::Verbatim;
+		new_encoding = ContentEncoding::Verbatim;
 
-	m_private->headers.emplace(symbols::ContentType, std::move(content_type));
+	return set_content_type(std::move(content_type), new_encoding);
 }
 
-void Request::set_content_type(std::string content_type, ContentEncoding encoding)
+bool Request::set_content_type(std::string content_type, ContentEncoding encoding)
 {
-	m_private->headers.emplace(symbols::ContentType, std::move(content_type));
-	m_private->encoding = encoding;
+	if (set_header(symbols::ContentType, std::move(content_type)))
+	{
+		m_private->encoding = encoding;
+		return true;
+	}
+	else
+	{
+		return false;
+	}
 }
 
-void Request::set_header(Symbol key, std::string value)
+bool Request::set_header(Symbol key, std::string value)
 {
+	if (m_private->headers_sent)
+	{
+		std::call_once(m_private->headers_sent_warning, [this,key] { issue_headers_sent_warning(key, *this); });
+		return false;
+	}
+
 	m_private->headers.emplace(key, std::move(value));
+	return true;
 }
 
-void Request::set_header(Symbol key, int value)
+bool Request::set_header(Symbol key, int value)
 {
-	m_private->headers.emplace(key, std::to_string(value));
+	return set_header(key, std::to_string(value));
 }
 
 void Request::send_headers()

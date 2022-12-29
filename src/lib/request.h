@@ -93,11 +93,11 @@ public:
 	int remote_port() const;
 	bool do_not_track() const;
 
-	void set_http_status(uint16_t code);
-	void set_content_type(std::string content_type);
-	void set_content_type(std::string content_type, ContentEncoding encoding);
-	void set_header(Symbol key, std::string value);
-	void set_header(Symbol key, int value);
+	bool set_http_status(uint16_t code);
+	bool set_content_type(std::string content_type);
+	bool set_content_type(std::string content_type, ContentEncoding encoding);
+	bool set_header(Symbol key, std::string value);
+	bool set_header(Symbol key, int value);
 	void send_headers();
 
 	ContentEncoding encoding() const;

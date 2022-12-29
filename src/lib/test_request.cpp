@@ -1,6 +1,7 @@
 #include "request.h"
 #include "test_mock_cgi_data.h"
 #include "test_mock_logger.h"
+#include "symbols.h"
 #include <catch2/catch_test_macros.hpp>
 
 using namespace fcgiserver;
@@ -48,12 +49,13 @@ constexpr size_t g_envp_size = (sizeof(g_envp) / sizeof(*g_envp)) - 1; // nullpt
 
 TEST_CASE("Request", "[request]")
 {
+	MockCgiData cgidata(std::string(), g_envp);
+	Logger logger = MockLogger::create();
+	MockLogger * mock_logger = static_cast<MockLogger*>(logger.log_callback());
+	Request request(cgidata, logger);
+
 	SECTION("EnvMap")
 	{
-		MockCgiData cgidata(std::string(), g_envp);
-		Logger logger = MockLogger::create();
-		Request request(cgidata, logger);
-
 		auto & env_map = request.env_map();
 		REQUIRE(env_map.size() == g_envp_size - 1); // illegal entry deducted
 
@@ -72,6 +74,64 @@ TEST_CASE("Request", "[request]")
 		iter = env_map.find("REQUEST_METHOD");
 		REQUIRE(iter != env_map.cend());
 		REQUIRE(iter->second == "GET");
+	}
+
+	SECTION("Complains once about headers already sent")
+	{
+		bool result;
+		Symbol custom1("X-Custom-Header-1");
+		Symbol custom2("X-Custom-Header-2");
+
+		REQUIRE( mock_logger->log_error.empty() );
+
+		result = request.set_http_status(199);
+		REQUIRE( result );
+		REQUIRE( request.http_status() == "199"sv );
+		REQUIRE( mock_logger->log_error.empty() );
+
+		result = request.set_content_type("text/html");
+		REQUIRE( result );
+		REQUIRE( request.header(symbols::ContentType) == "text/html"sv );
+		REQUIRE( request.encoding() == ContentEncoding::HTML );
+		REQUIRE( mock_logger->log_error.empty() );
+
+		result = request.set_header(custom1, 28);
+		REQUIRE( result );
+		REQUIRE( request.header(custom1) == "28"sv );
+		REQUIRE( mock_logger->log_error.empty() );
+
+		result = request.set_header(custom2, "some string");
+		REQUIRE( result );
+		REQUIRE( request.header(custom2) == "some string"sv );
+		REQUIRE( mock_logger->log_error.empty() );
+
+		// Lock the headers
+
+		request.send_headers();
+		REQUIRE( mock_logger->log_error.empty() );
+
+		// After this point, the headers must remain unchanging
+
+		result = request.set_http_status(500);
+		REQUIRE( !result );
+		REQUIRE( mock_logger->log_error.size() == 1 );
+		REQUIRE( request.http_status() == "199"sv );
+
+		result = request.set_content_type("application/octet-stream");
+		REQUIRE( !result );
+		REQUIRE( mock_logger->log_error.size() == 1 );
+		REQUIRE( request.header(symbols::ContentType) == "text/html"sv );
+		REQUIRE( request.encoding() == ContentEncoding::HTML );
+
+		result = request.set_header(custom1, 999);
+		REQUIRE( !result );
+		REQUIRE( mock_logger->log_error.size() == 1 );
+		REQUIRE( request.header(custom1) == "28"sv );
+
+		result = request.set_header(custom2, "some other string");
+		REQUIRE( !result );
+		REQUIRE( mock_logger->log_error.size() == 1 );
+		REQUIRE( request.header(custom2) == "some string"sv );
 	}
 }
 
